@@ -15,14 +15,27 @@ Live at https://marlow-production.up.railway.app
 npm install
 npm run dev          # http://localhost:3000/demo
 npm run verify       # 30 renderer checks (the spec's acceptance criteria)
-npm run verify:db    # 49 checks over accounts, sessions, ownership, merge
+npm run verify:db    # 54 checks over accounts, sessions, ownership, merge
 npm run verify:e2e   # 20 browser checks; needs a server running (see below)
+npm run db:migrate   # show what has been applied and what is pending
 ```
 
 **No database setup is required to run this.** With `DATABASE_URL` unset the
-app uses PGlite — Postgres compiled to WASM, running in-process — and applies
-the schema on first query. Set `DATABASE_URL` and the identical SQL goes to
-node-postgres instead. `/api/health` reports which driver is live.
+app uses PGlite — Postgres compiled to WASM, running in-process. Set
+`DATABASE_URL` and the identical SQL goes to node-postgres instead.
+`/api/health` reports which driver is live.
+
+Migrations in `db/migrations` run automatically on the first query, in filename
+order, each once and inside a transaction. **Never edit a migration that has
+already run** — add a new file. To run them against Railway from your machine:
+
+```bash
+railway run --service Postgres node scripts/run-verify-remote.js   # 50 checks
+railway run --service Postgres npm run db:migrate                  # status
+```
+
+Railway's own `DATABASE_URL` resolves only inside their private network, so
+those commands promote `DATABASE_PUBLIC_URL` instead.
 
 ## Layout
 
@@ -39,7 +52,8 @@ lib/auth.ts             scrypt passwords, server-side sessions
 lib/session.ts          the cookie half of auth — the only place cookies live
 lib/lot-store.ts        reading and writing owner choices; enforces ownership
 lib/inventory.ts        merges stored choices over the generated inventory
-db/schema.sql           users, sessions, lots
+lib/migrate.ts          numbered SQL migrations, applied once, in a transaction
+db/migrations/          the schema's history — never edit a file that has run
 
 app/demo/page.tsx       the street, read from the database
 app/lots/[address]      one lot: claim it, edit it, or look at it

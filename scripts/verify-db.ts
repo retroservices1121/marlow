@@ -14,6 +14,7 @@ const ADA = `ada+${RUN}@example.com`;
 const BOB = `bob+${RUN}@example.com`;
 
 import { getDb, driverName } from '@/lib/db';
+import { loadMigrations, migrate, pendingMigrations } from '@/lib/migrate';
 import {
   authenticate,
   createSession,
@@ -56,6 +57,21 @@ async function main() {
     '1. schema creates users, sessions, lots',
     ['lots', 'sessions', 'users'].every((t) => tables.some((r) => r.table_name === t)),
     tables.map((t) => t.table_name).join(','),
+  );
+
+  /* ---- Migrations ---- */
+  check('1a. every migration on disk has been applied', (await pendingMigrations(db)).length === 0);
+  check(
+    '1b. migrations are recorded',
+    (await db.query('select name from schema_migrations')).length === loadMigrations().length,
+  );
+  check('1c. re-running migrations applies nothing', (await migrate(db)).length === 0);
+  check(
+    '1d. migration names are ordered and unique',
+    (() => {
+      const names = loadMigrations().map((m) => m.name);
+      return new Set(names).size === names.length && [...names].sort().join() === names.join();
+    })(),
   );
 
   /* ---- Passwords ---- */

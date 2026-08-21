@@ -11,8 +11,8 @@
  * convenience, not a second dialect to maintain.
  */
 
-import { readFileSync } from 'fs';
 import path from 'path';
+import { migrate } from './migrate';
 
 export type Row = Record<string, unknown>;
 
@@ -20,14 +20,12 @@ export type Db = {
   query<T extends Row = Row>(sql: string, params?: unknown[]): Promise<T[]>;
   /** Single row or null — the common case, without the `[0]` dance. */
   one<T extends Row = Row>(sql: string, params?: unknown[]): Promise<T | null>;
+  /** Raw SQL with no parameters, possibly several statements. Migrations use this. */
+  exec(sql: string): Promise<void>;
   close(): Promise<void>;
 };
 
 let instance: Promise<Db> | null = null;
-
-function schemaSql(): string {
-  return readFileSync(path.join(process.cwd(), 'db', 'schema.sql'), 'utf8');
-}
 
 async function createPostgres(url: string): Promise<Db> {
   const { Pool } = await import('pg');
@@ -37,9 +35,7 @@ async function createPostgres(url: string): Promise<Db> {
     // plain local instances have no TLS at all.
     ssl: /\blocalhost\b|\b127\.0\.0\.1\b/.test(url) ? false : { rejectUnauthorized: false },
   });
-  await pool.query(schemaSql());
-
-  return {
+  const db: Db = {
     async query<T extends Row>(sql: string, params: unknown[] = []) {
       const result = await pool.query(sql, params);
       return result.rows as T[];
@@ -47,19 +43,24 @@ async function createPostgres(url: string): Promise<Db> {
     async one<T extends Row>(sql: string, params: unknown[] = []): Promise<T | null> {
       const result = await pool.query(sql, params);
       return (result.rows[0] as T | undefined) ?? null;
+    },
+    async exec(sql: string) {
+      await pool.query(sql);
     },
     async close() {
       await pool.end();
     },
   };
+
+  await migrate(db);
+  return db;
 }
 
 async function createPglite(dataDir?: string): Promise<Db> {
   const { PGlite } = await import('@electric-sql/pglite');
   const pg = new PGlite(dataDir);
-  await pg.exec(schemaSql());
 
-  return {
+  const db: Db = {
     async query<T extends Row>(sql: string, params: unknown[] = []) {
       const result = await pg.query(sql, params);
       return result.rows as T[];
@@ -68,10 +69,16 @@ async function createPglite(dataDir?: string): Promise<Db> {
       const result = await pg.query(sql, params);
       return (result.rows[0] as T | undefined) ?? null;
     },
+    async exec(sql: string) {
+      await pg.exec(sql);
+    },
     async close() {
       await pg.close();
     },
   };
+
+  await migrate(db);
+  return db;
 }
 
 /** Process-wide handle. Schema is applied on first use; the DDL is idempotent. */

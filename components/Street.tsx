@@ -39,6 +39,8 @@ export type StreetProps = {
   timeOfDay: TimeOfDay;
   /** Optional label rendered above the scene by the caller, not here. */
   className?: string;
+  /** Turns each building into a link. Omit for a plain, non-interactive street. */
+  hrefForLot?: (lot: Lot) => string;
 };
 
 type Placement = {
@@ -98,7 +100,7 @@ function placeFurniture(placements: Placement[]): FurniturePlacement[] {
   return out;
 }
 
-export default function Street({ lots, timeOfDay, className }: StreetProps) {
+export default function Street({ lots, timeOfDay, className, hrefForLot }: StreetProps) {
   const palette = TIME_PALETTES[timeOfDay];
   const stroke = palette.stroke;
   const { placements, totalWidth } = layout(lots);
@@ -209,6 +211,7 @@ export default function Street({ lots, timeOfDay, className }: StreetProps) {
           timeOfDay={timeOfDay}
           x={x}
           baseline={BASELINE}
+          href={hrefForLot?.(lot)}
         />
       ))}
 

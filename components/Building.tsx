@@ -54,6 +54,12 @@ export type BuildingProps = {
   x: number;
   /** Shared baseline every building on the street stands on. */
   baseline?: number;
+  /**
+   * Optional destination. With one the building becomes a real link, which
+   * carries keyboard activation for free; without one it stays a focusable
+   * figure, exactly as the renderer spec describes it.
+   */
+  href?: string;
 };
 
 /* ---- Derived geometry -------------------------------------------------- */
@@ -219,6 +225,7 @@ export default function Building({
   timeOfDay,
   x,
   baseline = DEFAULT_BASELINE,
+  href,
 }: BuildingProps) {
   const geo = deriveGeometry(address, buildingType);
   const palette = TIME_PALETTES[timeOfDay];
@@ -342,10 +349,10 @@ export default function Building({
     ? `Vacant lot, ${number} ${street}. For sale.`
     : `${signText}, ${number} ${street}.`;
 
-  return (
+  const body = (
     <g
       className="mw-building"
-      tabIndex={0}
+      tabIndex={href ? undefined : 0}
       role="img"
       aria-label={label}
       transform={`translate(${x} ${baseline})`}
@@ -435,5 +442,13 @@ export default function Building({
         />
       </g>
     </g>
+  );
+
+  return href ? (
+    <a className="mw-building-link" href={href} aria-label={label}>
+      {body}
+    </a>
+  ) : (
+    body
   );
 }

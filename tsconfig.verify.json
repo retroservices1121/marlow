@@ -1,27 +1,21 @@
 {
+  "//": "Harness build. Inherits the app's type rules so the checks cannot pass under looser settings than the code they verify; only the module format differs, because the harnesses run under plain Node.",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": [
-      "dom",
-      "esnext"
-    ],
     "jsx": "react-jsx",
     "module": "commonjs",
     "moduleResolution": "node",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "strict": false,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": [
-        "./*"
-      ]
-    }
+    "noEmit": false,
+    "incremental": false,
+    "plugins": []
   },
   "include": [
-    "scripts/verify.tsx",
-    "scripts/verify-db.ts",
+    "scripts/**/*.ts",
+    "scripts/**/*.tsx",
     "lib/**/*.ts",
-    "components/**/*.tsx"
-  ]
+    "components/**/*.tsx",
+    "app/**/*.ts",
+    "app/**/*.tsx"
+  ],
+  "exclude": ["node_modules", ".next", ".verify-out"]
 }

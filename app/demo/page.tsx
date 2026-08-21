@@ -1,38 +1,23 @@
-'use client';
-
 /**
- * Demo page: the whole inventory rendered as one street, plus a manual
- * time-of-day override.
+ * The street.
  *
- * The first render is always `day` so the server and the client agree; the
- * visitor's real local time is applied in an effect once mounted. Nothing is
- * persisted — reload and the street is byte-for-byte the same.
+ * A server component: it reads whatever owners have saved and lays it over the
+ * generated inventory. With an empty database this renders exactly the town the
+ * renderer shipped with, which is the property the whole storage layer is built
+ * to preserve.
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import Street from '@/components/Street';
-import { generateLots } from '@/lib/lots';
-import { TIMES_OF_DAY, currentTimeOfDay, type TimeOfDay } from '@/lib/palette';
+import Link from 'next/link';
+import StreetView from '@/components/StreetView';
+import { buildInventory } from '@/lib/inventory';
+import { getOverrides } from '@/lib/lot-store';
 
-type Mode = 'auto' | TimeOfDay;
+export const dynamic = 'force-dynamic';
 
-const SSR_TIME: TimeOfDay = 'day';
-
-export default function DemoPage() {
-  const lots = useMemo(() => generateLots(), []);
-  const [mode, setMode] = useState<Mode>('auto');
-  const [clockTime, setClockTime] = useState<TimeOfDay>(SSR_TIME);
-
-  useEffect(() => {
-    setClockTime(currentTimeOfDay());
-    // Re-check on the minute so a street left open rolls over into dusk.
-    const timer = window.setInterval(() => setClockTime(currentTimeOfDay()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const timeOfDay: TimeOfDay = mode === 'auto' ? clockTime : mode;
-
-  const sold = lots.filter((lot) => lot.status === 'sold').length;
+export default async function DemoPage() {
+  const lots = buildInventory(await getOverrides());
+  const claimed = lots.filter((lot) => lot.claimed).length;
+  const forSale = lots.filter((lot) => lot.status === 'vacant').length;
 
   return (
     <main className="mw-page">
@@ -40,42 +25,19 @@ export default function DemoPage() {
         <h1 className="mw-title">Marlow</h1>
         <p className="mw-sub">
           {lots.length} lots across four streets, rendered from one data array. Every dimension is
-          derived from the address, so the town is identical on every reload and every device.
+          derived from the address, so the town is identical on every reload and every device — only
+          the colours, signs and lit windows ever change.
+        </p>
+        <p className="mw-sub">
+          Click any building to see its lot. <Link href="/register">Take an empty one</Link> and
+          decide what gets built there.
         </p>
       </header>
 
-      <div className="mw-controls" role="group" aria-label="Time of day">
-        <p className="mw-legend" id="mw-tod-legend">
-          Time of day
-        </p>
-        <button
-          type="button"
-          className="mw-chip"
-          aria-pressed={mode === 'auto'}
-          onClick={() => setMode('auto')}
-        >
-          Auto ({clockTime})
-        </button>
-        {TIMES_OF_DAY.map((time) => (
-          <button
-            key={time}
-            type="button"
-            className="mw-chip"
-            aria-pressed={mode === time}
-            onClick={() => setMode(time)}
-          >
-            {time}
-          </button>
-        ))}
-      </div>
-
-      <div className="mw-scroll" tabIndex={0} role="region" aria-label="Marlow street, scrollable">
-        <Street lots={lots} timeOfDay={timeOfDay} />
-      </div>
+      <StreetView lots={lots} />
 
       <p className="mw-meta">
-        {sold} sold · {lots.length - sold} vacant · showing {timeOfDay}
-        {mode === 'auto' ? ' (from your clock)' : ' (override)'} · scroll sideways to walk the street
+        {claimed} claimed · {forSale} for sale · scroll sideways to walk the street
       </p>
     </main>
   );

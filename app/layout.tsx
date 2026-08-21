@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next';
+import Nav from '@/components/Nav';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Marlow — building renderer',
-  description: 'Deterministic SVG street renderer for Marlow.',
+  title: 'Marlow',
+  description: 'A hand-drawn town where every building belongs to somebody.',
 };
 
 export const viewport: Viewport = {
@@ -23,7 +24,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <Nav />
+        {children}
+      </body>
     </html>
   );
 }

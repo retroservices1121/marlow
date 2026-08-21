@@ -1,7 +1,17 @@
 /* Accounts, sessions and the lot store, exercised against a real Postgres engine. */
 
-process.env.PGLITE_DIR = 'memory://';
-delete process.env.DATABASE_URL;
+/*
+ * Runs against whatever database it is pointed at. With no DATABASE_URL it uses
+ * a throwaway in-memory PGlite; under `railway run` it exercises the real
+ * Postgres instead. Everything it creates is namespaced to one run and removed
+ * at the end, and the final check asserts the row counts came back to where
+ * they started — so it is safe to point at production.
+ */
+if (!process.env.DATABASE_URL) process.env.PGLITE_DIR = 'memory://';
+
+const RUN = Date.now().toString(36);
+const ADA = `ada+${RUN}@example.com`;
+const BOB = `bob+${RUN}@example.com`;
 
 import { getDb, driverName } from '@/lib/db';
 import {
@@ -32,6 +42,12 @@ async function main() {
   console.log(`driver: ${driverName()}`);
   const db = await getDb();
 
+  const baseline = await db.one<{ users: string; lots: string; sessions: string }>(
+    `select (select count(*) from users) as users,
+            (select count(*) from lots) as lots,
+            (select count(*) from sessions) as sessions`,
+  );
+
   /* ---- Schema ---- */
   const tables = await db.query<{ table_name: string }>(
     `select table_name from information_schema.tables where table_schema = 'public' order by table_name`,
@@ -51,23 +67,23 @@ async function main() {
   check('6. garbage hash rejected, not thrown', !(await verifyPassword('x', 'not-a-hash')));
 
   /* ---- Registration ---- */
-  const reg = await registerUser('Ada@Example.com', 'hunter2hunter2');
+  const reg = await registerUser(ADA.replace('ada', 'Ada'), 'hunter2hunter2');
   check('7. registration succeeds', reg.ok);
-  check('8. email is normalised', reg.ok && reg.user.email === 'ada@example.com');
+  check('8. email is normalised', reg.ok && reg.user.email === ADA);
 
-  const dupe = await registerUser('ADA@example.com', 'anotherpassword');
+  const dupe = await registerUser(ADA.toUpperCase(), 'anotherpassword');
   check('9. duplicate email rejected case-insensitively', !dupe.ok, dupe.ok ? 'accepted' : '');
 
-  const weak = await registerUser('bob@example.com', 'short');
+  const weak = await registerUser(BOB, 'short');
   check('10. short password rejected', !weak.ok);
   const bad = await registerUser('not-an-email', 'longenoughpassword');
   check('11. invalid email rejected', !bad.ok);
 
   /* ---- Authentication ---- */
-  const good = await authenticate('ada@example.com', 'hunter2hunter2');
+  const good = await authenticate(ADA, 'hunter2hunter2');
   check('12. correct credentials authenticate', good.ok);
-  const wrongPass = await authenticate('ada@example.com', 'wrong');
-  const noUser = await authenticate('nobody@example.com', 'wrong');
+  const wrongPass = await authenticate(ADA, 'wrong');
+  const noUser = await authenticate(`nobody+${RUN}@example.com`, 'wrong');
   check('13. wrong password refused', !wrongPass.ok);
   check(
     '14. unknown user and wrong password give the same message',
@@ -90,7 +106,9 @@ async function main() {
     storedTokens.every((r) => r.token !== token),
   );
 
-  await db.query(`update sessions set expires_at = now() - interval '1 hour'`);
+  await db.query(`update sessions set expires_at = now() - interval '1 hour' where user_id = $1`, [
+    ada.id,
+  ]);
   check('19. expired session resolves to nobody', (await userForToken(token)) === null);
   check('20. expired sessions can be purged', (await purgeExpiredSessions()) > 0);
 
@@ -99,11 +117,15 @@ async function main() {
   check('21. logout deletes the session', (await userForToken(live)) === null);
 
   /* ---- Claiming ---- */
-  const bobReg = await registerUser('bob@example.com', 'bobspassword1');
+  const bobReg = await registerUser(BOB, 'bobspassword1');
   if (!bobReg.ok) throw new Error('bob should have registered');
   const bob = bobReg.user;
 
-  const address = generateLots()[10].address;
+  const taken = new Set(
+    (await db.query<{ address: string }>('select address from lots')).map((r) => r.address),
+  );
+  const free = generateLots().filter((l) => !taken.has(l.address));
+  const address = free[0].address;
   const claim = await claimLot(address, ada.id);
   check('22. an unclaimed lot can be claimed', claim.ok);
   check('23. claiming marks the lot sold', claim.ok && claim.value.status === 'sold');
@@ -146,7 +168,7 @@ async function main() {
     (await getOverride(address))?.facadeColor === FACADE_PALETTE[3],
   );
 
-  const unclaimed = generateLots()[11].address;
+  const unclaimed = free[1].address;
   check('37. editing an unclaimed lot is refused', !(await saveLotChoices(unclaimed, ada.id, { signText: 'X' })).ok);
 
   /* ---- Merge onto the inventory ---- */
@@ -188,6 +210,27 @@ async function main() {
   check('47. sign text is capped at 18 characters', normalizeSignText('ABCDEFGHIJKLMNOPQRSTUVWXYZ')?.length === 18);
   check('48. sign text strips scripting characters', normalizeSignText('<script>hi</script>') === 'SCRIPTHISCRIPT');
   check('49. whitespace-only sign text is rejected', normalizeSignText('   ') === null);
+
+  /* ---- Leave no trace ---------------------------------------------------
+   * Everything this run created is namespaced to RUN, so it can be removed
+   * precisely. The final check is what makes the harness safe to point at a
+   * real database: it asserts the row counts came back to where they started.
+   */
+  await db.query('delete from lots where address = any($1::text[])', [[address, unclaimed]]);
+  await db.query('delete from users where email like $1', [`%+${RUN}@example.com`]);
+
+  const after = await db.one<{ users: string; lots: string; sessions: string }>(
+    `select (select count(*) from users)    as users,
+            (select count(*) from lots)     as lots,
+            (select count(*) from sessions) as sessions`,
+  );
+  check(
+    '50. the database is left exactly as it was found',
+    Number(after?.users) === Number(baseline?.users) &&
+      Number(after?.lots) === Number(baseline?.lots) &&
+      Number(after?.sessions) === Number(baseline?.sessions),
+    `before ${JSON.stringify(baseline)} after ${JSON.stringify(after)}`,
+  );
 
   console.log(failures === 0 ? '\nALL DATABASE CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
   await db.close();

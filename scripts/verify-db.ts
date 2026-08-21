@@ -26,7 +26,9 @@ import {
   verifyPassword,
 } from '@/lib/auth';
 import {
+  FREE_LOTS_PER_ACCOUNT,
   claimLot,
+  freeClaimCount,
   getOverride,
   getOverrides,
   linkLotsToUser,
@@ -279,6 +281,46 @@ async function main() {
     (await lotsOwnedBy(ada.id)).some((l) => l.address === bought),
   );
 
+  /* ---- One free lot per account -----------------------------------------
+   * Plots are being given away to seed the town, so self-serve claiming has to
+   * be capped or one person can take the whole street in a loop. This section
+   * establishes its own state rather than inheriting it: by now Ada holds only
+   * the linked purchase, having released her earlier claim above.
+   */
+  const freeA = free[3].address;
+  const freeB = free[4].address;
+
+  check('49s. a linked purchase does not spend the free allowance', (await freeClaimCount(ada.id)) === 0);
+
+  const firstFree = await claimLot(freeA, ada.id);
+  check('49t. an account can claim one free lot', firstFree.ok, errOf(firstFree));
+  check('49u. the free claim is counted', (await freeClaimCount(ada.id)) === FREE_LOTS_PER_ACCOUNT);
+
+  const secondFree = await claimLot(freeB, ada.id);
+  check('49v. a second free lot is refused', !secondFree.ok, secondFree.ok ? 'claimed twice!' : '');
+  check('49w. the refusal explains the cap', !secondFree.ok && /free lot/i.test(errOf(secondFree)), errOf(secondFree));
+  check('49x. nothing was written by the refused claim', (await getOverride(freeB)) === null);
+
+  check('49y. re-claiming the lot you already hold still succeeds', (await claimLot(freeA, ada.id)).ok);
+  check('49z. that did not spend a second allowance', (await freeClaimCount(ada.id)) === FREE_LOTS_PER_ACCOUNT);
+
+  const bobsFree = await claimLot(freeB, bob.id);
+  check('49aa. a different account still gets its own free lot', bobsFree.ok, errOf(bobsFree));
+  await releaseLot(freeB, bob.id);
+
+  // Releasing gives the allowance back, so a mistake is not permanent.
+  await releaseLot(freeA, ada.id);
+  check('49ab. releasing frees the allowance again', (await freeClaimCount(ada.id)) === 0);
+  const afterRelease = await claimLot(freeB, ada.id);
+  check('49ac. and another lot can then be claimed', afterRelease.ok, errOf(afterRelease));
+  await releaseLot(freeB, ada.id);
+
+  check(
+    '49ad. a granted lot is recorded as a grant, not a claim',
+    (await db.one<{ acquired_via: string }>('select acquired_via from lots where address = $1', [bought]))
+      ?.acquired_via === 'grant',
+  );
+
   await releaseLot(bought, ada.id);
 
   /* ---- Normalisation edge cases ---- */
@@ -291,7 +333,9 @@ async function main() {
    * precisely. The final check is what makes the harness safe to point at a
    * real database: it asserts the row counts came back to where they started.
    */
-  await db.query('delete from lots where address = any($1::text[])', [[address, unclaimed, bought]]);
+  await db.query('delete from lots where address = any($1::text[])', [
+    [address, unclaimed, bought, freeA, freeB],
+  ]);
   await db.query('delete from users where email like $1', [`%+${RUN}@example.com`]);
 
   const after = await db.one<{ users: string; lots: string; sessions: string }>(

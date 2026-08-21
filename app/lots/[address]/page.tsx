@@ -10,7 +10,7 @@ import LotEditor from '@/components/LotEditor';
 import ClaimButton from '@/components/ClaimButton';
 import { saveAction } from '@/app/actions';
 import { buildInventory } from '@/lib/inventory';
-import { getOverrides, isRealAddress } from '@/lib/lot-store';
+import { FREE_LOTS_PER_ACCOUNT, freeClaimCount, getOverrides, isRealAddress } from '@/lib/lot-store';
 import { currentUser } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +31,9 @@ export default async function LotPage({ params }: { params: Promise<{ address: s
   if (!lot) notFound();
 
   const isMine = user !== null && lot.ownerId === user.id;
+  // Say up front that the allowance is spent, rather than refusing after a click.
+  const allowanceSpent =
+    user !== null && !isMine && (await freeClaimCount(user.id)) >= FREE_LOTS_PER_ACCOUNT;
 
   return (
     <main className="mw-page mw-narrow">
@@ -67,7 +70,14 @@ export default async function LotPage({ params }: { params: Promise<{ address: s
             Nothing is built here yet. Claim it and you choose the sign, the colours and what kind
             of building goes up.
           </p>
-          <ClaimButton address={lot.address} signedIn={user !== null} />
+          {allowanceSpent ? (
+            <p className="mw-sub">
+              You already have your free lot on Marlow. <Link href="/lots">Release it</Link> if you
+              would rather have this one instead.
+            </p>
+          ) : (
+            <ClaimButton address={lot.address} signedIn={user !== null} />
+          )}
         </>
       )}
     </main>

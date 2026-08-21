@@ -10,7 +10,8 @@
     "verify": "node scripts/run-verify.js",
     "verify:db": "node scripts/run-verify.js db",
     "verify:e2e": "node scripts/e2e.js",
-    "db:migrate": "node scripts/migrate.js"
+    "db:migrate": "node scripts/migrate.js",
+    "grant": "node scripts/grant.js"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.5",

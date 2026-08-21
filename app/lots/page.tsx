@@ -19,6 +19,11 @@ export default async function LotsPage() {
       <h1 className="mw-title">Your lots</h1>
       <p className="mw-sub">Signed in as {user.email}.</p>
 
+      <p className="mw-sub">
+        One free lot per account while Marlow is finding its feet. Anything given to you or bought
+        is on top of that.
+      </p>
+
       {mine.length === 0 ? (
         <p className="mw-sub">
           You do not own anything yet. <Link href="/demo">Walk the street</Link> and pick an empty

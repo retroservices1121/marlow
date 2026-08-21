@@ -25,6 +25,28 @@ export function isRealAddress(address: string): boolean {
 
 export type StoreResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
+/** How a lot was acquired. Only `claim` is capped. */
+export type AcquiredVia = 'claim' | 'grant' | 'purchase';
+
+/** One free lot per account — the rest are given or bought. */
+export const FREE_LOTS_PER_ACCOUNT = 1;
+
+const UNIQUE_VIOLATION = '23505';
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: string }).code === UNIQUE_VIOLATION;
+}
+
+/** How many lots this account took from the street for free. */
+export async function freeClaimCount(userId: string): Promise<number> {
+  const db = await getDb();
+  const row = await db.one<{ count: string }>(
+    `select count(*) as count from lots where owner_id = $1 and acquired_via = 'claim'`,
+    [userId],
+  );
+  return Number(row?.count ?? 0);
+}
+
 export async function getOverrides(): Promise<Map<string, LotOverride>> {
   const db = await getDb();
   const rows = await db.query('select * from lots');
@@ -50,6 +72,7 @@ export async function getOverride(address: string): Promise<LotOverride | null> 
 export async function purchaseLotForEmail(
   address: string,
   email: string,
+  via: Exclude<AcquiredVia, 'claim'> = 'grant',
 ): Promise<StoreResult<LotOverride>> {
   if (!isRealAddress(address)) return { ok: false, error: 'No such address in Marlow.' };
   const buyer = email.trim().toLowerCase();
@@ -57,16 +80,17 @@ export async function purchaseLotForEmail(
 
   const db = await getDb();
   await db.query(
-    `insert into lots (address, owner_email, status, purchased_at)
-          values ($1, $2, 'sold', now())
+    `insert into lots (address, owner_email, status, purchased_at, acquired_via)
+          values ($1, $2, 'sold', now(), $3)
      on conflict (address) do update
             set owner_email = excluded.owner_email,
                 status = 'sold',
                 purchased_at = coalesce(lots.purchased_at, now()),
+                acquired_via = excluded.acquired_via,
                 updated_at = now()
           where lots.owner_id is null
             and (lots.owner_email is null or lower(lots.owner_email) = lower(excluded.owner_email))`,
-    [address, buyer],
+    [address, buyer, via],
   );
 
   const stored = await getOverride(address);
@@ -115,17 +139,35 @@ export async function claimLot(address: string, userId: string): Promise<StoreRe
   if (!isRealAddress(address)) return { ok: false, error: 'No such address in Marlow.' };
   const db = await getDb();
 
-  await db.query(
-    `insert into lots (address, owner_id, status)
-          values ($1, $2, 'sold')
-     on conflict (address) do update
-            set owner_id = excluded.owner_id,
-                status = 'sold',
-                updated_at = now()
-          where lots.owner_id is null
-            and lots.owner_email is null`,
-    [address, userId],
-  );
+  // Already yours? Say so without spending the allowance twice.
+  const existing = await getOverride(address);
+  if (existing?.ownerId === userId) return { ok: true, value: existing };
+
+  const capMessage =
+    'You already have your free lot on Marlow. Release it first if you would rather have a different one.';
+  if ((await freeClaimCount(userId)) >= FREE_LOTS_PER_ACCOUNT) {
+    return { ok: false, error: capMessage };
+  }
+
+  try {
+    await db.query(
+      `insert into lots (address, owner_id, status, acquired_via)
+            values ($1, $2, 'sold', 'claim')
+       on conflict (address) do update
+              set owner_id = excluded.owner_id,
+                  status = 'sold',
+                  acquired_via = 'claim',
+                  updated_at = now()
+            where lots.owner_id is null
+              and lots.owner_email is null`,
+      [address, userId],
+    );
+  } catch (error) {
+    // The partial unique index is the real guarantee; the count above is only
+    // there to produce a decent message. Two simultaneous claims land here.
+    if (isUniqueViolation(error)) return { ok: false, error: capMessage };
+    throw error;
+  }
 
   const stored = await getOverride(address);
   if (!stored) return { ok: false, error: 'Could not claim that lot.' };

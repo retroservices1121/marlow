@@ -15,7 +15,8 @@ Live at https://marlow-production.up.railway.app
 npm install
 npm run dev          # http://localhost:3000/demo
 npm run verify       # 30 renderer checks (the spec's acceptance criteria)
-npm run verify:db    # 72 checks over accounts, ownership, purchase, merge
+npm run verify:db    # 84 checks over accounts, ownership, purchase, merge
+npm run grant        # give a lot away — see below
 npm run verify:e2e   # 20 browser checks; needs a server running (see below)
 npm run db:migrate   # show what has been applied and what is pending
 ```
@@ -90,8 +91,29 @@ one would let anybody inherit a stranger's purchase by typing their address at
 sign-up. That single requirement is why identity is moving to a provider that
 verifies email by default.
 
-Payment itself is not built yet; when it is, it goes through **polar.sh**.
-Pricing hangs off the `tier` field already on every lot.
+## Giving lots away
+
+Payment is not built yet — early plots are handed out to seed the town, which
+uses the same path a paid purchase will:
+
+```bash
+npm run grant -- "126 Main Street" alice@example.com
+npm run grant -- --list
+railway run --service Postgres npm run grant -- "126 Main Street" alice@example.com
+```
+
+A granted lot appears on the street immediately with its generated sign and
+colours, and becomes editable when the recipient signs in with that address.
+Deliberately a command, not a page: a giveaway anyone can trigger over HTTP is
+not a giveaway.
+
+Self-serve claiming is capped at **one free lot per account**, enforced by a
+partial unique index rather than a count-then-insert, so two simultaneous
+requests cannot both get through. Grants and purchases sit on top of that
+allowance; releasing a lot gives it back.
+
+When payment lands it goes through **polar.sh**, calling `purchaseLotForEmail`
+with `'purchase'`. Pricing hangs off the `tier` field already on every lot.
 
 ## Derived vs. chosen
 

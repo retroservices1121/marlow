@@ -13,10 +13,8 @@
  */
 const path = require('path');
 
-const publicUrl = process.env.DATABASE_PUBLIC_URL;
-if (publicUrl) {
-  process.env.DATABASE_URL = publicUrl;
-} else if (!process.env.DATABASE_URL) {
+require('./db-env')();
+if (!process.env.DATABASE_URL) {
   console.error(
     'No DATABASE_PUBLIC_URL or DATABASE_URL in the environment.\n' +
       'Run this under: railway run --service Postgres node scripts/run-verify-remote.js',

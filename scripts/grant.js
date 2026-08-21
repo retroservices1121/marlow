@@ -20,9 +20,7 @@ const Module = require('module');
 const root = path.join(__dirname, '..');
 const out = path.join(root, '.verify-out');
 
-if (process.env.DATABASE_PUBLIC_URL && !process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
-}
+require('./db-env')();
 
 const args = process.argv.slice(2);
 const wantsList = args.includes('--list');

@@ -15,9 +15,7 @@ const Module = require('module');
 const root = path.join(__dirname, '..');
 const out = path.join(root, '.verify-out');
 
-if (process.env.DATABASE_PUBLIC_URL && !process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
-}
+require('./db-env')();
 
 fs.rmSync(out, { recursive: true, force: true });
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', 'tsconfig.verify.json', '--outDir', out], {

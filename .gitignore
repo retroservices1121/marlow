@@ -1,0 +1,17 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# Compiled output of the verification harnesses.
+.verify-out/
+
+# Local PGlite data directory — the dev-time stand-in for Postgres.
+.pglite/
+
+# Never commit real connection strings. .env.example is the template.
+.env
+.env.*
+!.env.example
+
+.DS_Store

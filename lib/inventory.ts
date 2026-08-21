@@ -1,0 +1,121 @@
+/**
+ * Merging stored owner choices onto the generated inventory.
+ *
+ * `generateLots()` stays the pure, deterministic default. This layer lays
+ * whatever an owner has saved on top of it. An address with no stored row comes
+ * through untouched, so an unedited town renders byte-identical to the one the
+ * renderer shipped with.
+ *
+ * Everything here validates. These fields are user input and they feed straight
+ * into the renderer, so a bad value must never reach a component — it is
+ * dropped in favour of the generated default rather than drawn.
+ */
+
+import { FACADE_PALETTE } from './palette';
+import { generateLots, type BuildingType, type Lot, type Status } from './lots';
+
+export const MAX_SIGN_CHARS = 18;
+
+const BUILDING_TYPES: readonly BuildingType[] = ['storefront', 'tower', 'warehouse', 'civic'];
+const STATUSES: readonly Status[] = ['sold', 'vacant'];
+
+/** The stored half of a lot: what an owner chose, plus who owns it. */
+export type LotOverride = {
+  address: string;
+  ownerId: string | null;
+  status: Status | null;
+  buildingType: BuildingType | null;
+  facadeColor: string | null;
+  accentColor: string | null;
+  signText: string | null;
+};
+
+/** A lot plus the ownership facts the renderer does not care about. */
+export type OwnedLot = Lot & { ownerId: string | null; claimed: boolean };
+
+/* ---- Validation -------------------------------------------------------- */
+
+/** Curated palette only — never a free colour picker. */
+export function isPaletteColor(value: unknown): value is string {
+  return typeof value === 'string' && (FACADE_PALETTE as readonly string[]).includes(value.toUpperCase());
+}
+
+export function normalizeColor(value: unknown): string | null {
+  return isPaletteColor(value) ? value.toUpperCase() : null;
+}
+
+export function isBuildingType(value: unknown): value is BuildingType {
+  return typeof value === 'string' && BUILDING_TYPES.includes(value as BuildingType);
+}
+
+export function isStatus(value: unknown): value is Status {
+  return typeof value === 'string' && STATUSES.includes(value as Status);
+}
+
+/**
+ * Sign text is uppercase, trimmed, length-capped, and restricted to characters
+ * the sign board can actually render. Anything else is dropped rather than
+ * drawn — a sign is a public-facing string on someone else's street.
+ */
+export function normalizeSignText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const cleaned = value
+    .toUpperCase()
+    .replace(/[^A-Z0-9 &.'\-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_SIGN_CHARS);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+/** Coerces one database row into a validated override. */
+export function toOverride(row: Record<string, unknown>): LotOverride {
+  return {
+    address: String(row.address),
+    ownerId: row.owner_id == null ? null : String(row.owner_id),
+    status: isStatus(row.status) ? row.status : null,
+    buildingType: isBuildingType(row.building_type) ? row.building_type : null,
+    facadeColor: normalizeColor(row.facade_color),
+    accentColor: normalizeColor(row.accent_color),
+    signText: normalizeSignText(row.sign_text),
+  };
+}
+
+/* ---- Merge ------------------------------------------------------------- */
+
+/**
+ * Lays stored choices over the generated defaults.
+ *
+ * Note the ordering: `buildingType` is applied before anything else is read,
+ * because it is the one owner-chosen field the geometry depends on. A lot whose
+ * type changes legitimately changes shape — every other field is fills and text.
+ */
+export function applyOverrides(
+  lots: readonly Lot[],
+  overrides: ReadonlyMap<string, LotOverride>,
+): OwnedLot[] {
+  return lots.map((lot) => {
+    const stored = overrides.get(lot.address);
+    if (!stored) return { ...lot, ownerId: null, claimed: false };
+
+    return {
+      ...lot,
+      status: stored.status ?? lot.status,
+      buildingType: stored.buildingType ?? lot.buildingType,
+      facadeColor: stored.facadeColor ?? lot.facadeColor,
+      accentColor: stored.accentColor ?? lot.accentColor,
+      signText: stored.signText ?? lot.signText,
+      ownerId: stored.ownerId,
+      claimed: stored.ownerId !== null,
+    };
+  });
+}
+
+/** The generated inventory with stored choices applied. */
+export function buildInventory(overrides: ReadonlyMap<string, LotOverride>): OwnedLot[] {
+  return applyOverrides(generateLots(), overrides);
+}
+
+export function overridesByAddress(rows: Record<string, unknown>[]): Map<string, LotOverride> {
+  return new Map(rows.map((row) => [String(row.address), toOverride(row)]));
+}

@@ -41,7 +41,7 @@ export default async function LotPage({ params }: { params: Promise<{ address: s
       <h1 className="mw-title">{lot.address}</h1>
       <p className="mw-sub">
         {TIER_LABEL[lot.tier] ?? lot.tier} ·{' '}
-        {lot.claimed ? (isMine ? 'Yours' : 'Taken') : 'For sale'}
+        {isMine ? 'Yours' : lot.awaitingOwner ? 'Sold' : lot.claimed ? 'Taken' : 'For sale'}
       </p>
 
       {isMine ? (
@@ -52,6 +52,11 @@ export default async function LotPage({ params }: { params: Promise<{ address: s
           </p>
           <LotEditor lot={lot} action={saveAction} />
         </>
+      ) : lot.awaitingOwner ? (
+        <p className="mw-sub">
+          This lot has been bought but its owner has not signed in yet. Nothing is built here until
+          they do — sign in with the email used at checkout to take it over.
+        </p>
       ) : lot.claimed ? (
         <p className="mw-sub">
           <strong>{lot.signText}</strong> trades here. This lot already has an owner.

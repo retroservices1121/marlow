@@ -22,7 +22,10 @@ const STATUSES: readonly Status[] = ['sold', 'vacant'];
 /** The stored half of a lot: what an owner chose, plus who owns it. */
 export type LotOverride = {
   address: string;
+  /** Set when a signed-in account owns the lot. */
   ownerId: string | null;
+  /** Set at purchase, before any account exists. */
+  ownerEmail: string | null;
   status: Status | null;
   buildingType: BuildingType | null;
   facadeColor: string | null;
@@ -31,7 +34,13 @@ export type LotOverride = {
 };
 
 /** A lot plus the ownership facts the renderer does not care about. */
-export type OwnedLot = Lot & { ownerId: string | null; claimed: boolean };
+export type OwnedLot = Lot & {
+  ownerId: string | null;
+  /** Bought by somebody — with or without an account behind it yet. */
+  claimed: boolean;
+  /** Bought, but nobody has signed in with the buyer's email to take it over. */
+  awaitingOwner: boolean;
+};
 
 /* ---- Validation -------------------------------------------------------- */
 
@@ -73,6 +82,7 @@ export function toOverride(row: Record<string, unknown>): LotOverride {
   return {
     address: String(row.address),
     ownerId: row.owner_id == null ? null : String(row.owner_id),
+    ownerEmail: row.owner_email == null ? null : String(row.owner_email).toLowerCase(),
     status: isStatus(row.status) ? row.status : null,
     buildingType: isBuildingType(row.building_type) ? row.building_type : null,
     facadeColor: normalizeColor(row.facade_color),
@@ -96,7 +106,7 @@ export function applyOverrides(
 ): OwnedLot[] {
   return lots.map((lot) => {
     const stored = overrides.get(lot.address);
-    if (!stored) return { ...lot, ownerId: null, claimed: false };
+    if (!stored) return { ...lot, ownerId: null, claimed: false, awaitingOwner: false };
 
     return {
       ...lot,
@@ -106,7 +116,9 @@ export function applyOverrides(
       accentColor: stored.accentColor ?? lot.accentColor,
       signText: stored.signText ?? lot.signText,
       ownerId: stored.ownerId,
-      claimed: stored.ownerId !== null,
+      // Either half of ownership means the lot is spoken for.
+      claimed: stored.ownerId !== null || stored.ownerEmail !== null,
+      awaitingOwner: stored.ownerId === null && stored.ownerEmail !== null,
     };
   });
 }

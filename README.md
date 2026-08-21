@@ -15,7 +15,7 @@ Live at https://marlow-production.up.railway.app
 npm install
 npm run dev          # http://localhost:3000/demo
 npm run verify       # 30 renderer checks (the spec's acceptance criteria)
-npm run verify:db    # 54 checks over accounts, sessions, ownership, merge
+npm run verify:db    # 72 checks over accounts, ownership, purchase, merge
 npm run verify:e2e   # 20 browser checks; needs a server running (see below)
 npm run db:migrate   # show what has been applied and what is pending
 ```
@@ -71,10 +71,27 @@ exactly that.
 Ownership is enforced in `lib/lot-store.ts`, not in the UI. A server action
 that forgets to check still cannot write to someone else's lot.
 
-Payment is not built yet; when it is, it goes through **polar.sh**.
-`claimLot(address, userId)` deliberately takes no request context so a Polar
-webhook can call it unchanged once an order completes. Pricing hangs off the
-`tier` field already on every lot.
+## Buying before you have an account
+
+A lot is bought at checkout, where there is no user yet — only the email the
+buyer gave the payment provider. So ownership has two halves:
+
+| column | set when | means |
+| --- | --- | --- |
+| `owner_email` | the purchase completes | bought; shows on the street, not editable |
+| `owner_id` | someone signs in with that email | linked to an account; editable |
+
+`purchaseLotForEmail(address, email)` is what a payment webhook calls — it takes
+no request context and is idempotent, because providers retry. `linkLotsToUser`
+hands those lots over on sign-in.
+
+**`linkLotsToUser` must only ever be given a *verified* email.** An unverified
+one would let anybody inherit a stranger's purchase by typing their address at
+sign-up. That single requirement is why identity is moving to a provider that
+verifies email by default.
+
+Payment itself is not built yet; when it is, it goes through **polar.sh**.
+Pricing hangs off the `tier` field already on every lot.
 
 ## Derived vs. chosen
 

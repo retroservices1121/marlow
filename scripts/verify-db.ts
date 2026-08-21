@@ -25,8 +25,17 @@ import {
   userForToken,
   verifyPassword,
 } from '@/lib/auth';
-import { claimLot, getOverride, getOverrides, lotsOwnedBy, releaseLot, saveLotChoices } from '@/lib/lot-store';
-import { applyOverrides, normalizeSignText } from '@/lib/inventory';
+import {
+  claimLot,
+  getOverride,
+  getOverrides,
+  linkLotsToUser,
+  lotsOwnedBy,
+  purchaseLotForEmail,
+  releaseLot,
+  saveLotChoices,
+} from '@/lib/lot-store';
+import { applyOverrides, buildInventory, normalizeSignText } from '@/lib/inventory';
 import { generateLots } from '@/lib/lots';
 import { FACADE_PALETTE } from '@/lib/palette';
 
@@ -222,6 +231,56 @@ async function main() {
   check('45. owner can release', (await releaseLot(address, ada.id)).ok);
   check('46. released lot returns to the generated default', (await getOverride(address)) === null);
 
+  /* ---- Buying without an account, then linking it -----------------------
+   * The whole point: a purchase happens at checkout where there is no user,
+   * and becomes editable only once someone signs in with that email verified.
+   */
+  const bought = free[2].address;
+  const buyerEmail = `Buyer+${RUN}@Example.com`;
+  const purchase = await purchaseLotForEmail(bought, buyerEmail);
+  check('49a. a lot can be bought with no account', purchase.ok, errOf(purchase));
+  check(
+    '49b. purchase stores the email folded and marks it sold',
+    purchase.ok && purchase.value.ownerEmail === buyerEmail.toLowerCase() && purchase.value.status === 'sold',
+  );
+  check('49c. a purchased lot has no account behind it yet', purchase.ok && purchase.value.ownerId === null);
+
+  const repeat = await purchaseLotForEmail(bought, buyerEmail.toUpperCase());
+  check('49d. a retried webhook for the same buyer is idempotent', repeat.ok, errOf(repeat));
+
+  const otherBuyer = await purchaseLotForEmail(bought, `someone-else+${RUN}@example.com`);
+  check('49e. a second buyer cannot buy a sold lot', !otherBuyer.ok, otherBuyer.ok ? 'double sold!' : '');
+  check('49f. the original buyer still holds it', (await getOverride(bought))?.ownerEmail === buyerEmail.toLowerCase());
+
+  check('49g. a purchased lot cannot be claimed by a signed-in stranger', !(await claimLot(bought, bob.id)).ok);
+  check('49h. a purchased lot cannot be edited by anyone yet', !(await saveLotChoices(bought, ada.id, { signText: 'NOPE' })).ok);
+
+  const purchasedInventory = buildInventory(await getOverrides()).find((l) => l.address === bought)!;
+  check('49i. a purchased lot reads as claimed but awaiting its owner',
+    purchasedInventory.claimed && purchasedInventory.awaitingOwner);
+
+  // The dangerous case: the wrong account must not inherit the purchase.
+  const wrongLink = await linkLotsToUser(bob.id, `not-the-buyer+${RUN}@example.com`);
+  check('49j. a different email links nothing', wrongLink.length === 0);
+  check('49k. the purchase is untouched after a mismatched link', (await getOverride(bought))?.ownerId === null);
+
+  const linked = await linkLotsToUser(ada.id, buyerEmail.toUpperCase());
+  check('49l. signing in with the buyer email links the lot', linked.includes(bought), linked.join(','));
+  const afterLink = await getOverride(bought);
+  check('49m. the lot now belongs to the account', afterLink?.ownerId === ada.id);
+  check('49n. the buyer email is kept as the purchase record', afterLink?.ownerEmail === buyerEmail.toLowerCase());
+
+  const nowEditable = await saveLotChoices(bought, ada.id, { signText: 'BOUGHT FIRST' });
+  check('49o. the linked owner can finally customise it', nowEditable.ok, errOf(nowEditable));
+  check('49p. still refused for everyone else', !(await saveLotChoices(bought, bob.id, { signText: 'NO' })).ok);
+  check('49q. linking again is a no-op', (await linkLotsToUser(ada.id, buyerEmail)).length === 0);
+  check(
+    '49r. it shows in the dashboard of the account it linked to',
+    (await lotsOwnedBy(ada.id)).some((l) => l.address === bought),
+  );
+
+  await releaseLot(bought, ada.id);
+
   /* ---- Normalisation edge cases ---- */
   check('47. sign text is capped at 18 characters', normalizeSignText('ABCDEFGHIJKLMNOPQRSTUVWXYZ')?.length === 18);
   check('48. sign text strips scripting characters', normalizeSignText('<script>hi</script>') === 'SCRIPTHISCRIPT');
@@ -232,7 +291,7 @@ async function main() {
    * precisely. The final check is what makes the harness safe to point at a
    * real database: it asserts the row counts came back to where they started.
    */
-  await db.query('delete from lots where address = any($1::text[])', [[address, unclaimed]]);
+  await db.query('delete from lots where address = any($1::text[])', [[address, unclaimed, bought]]);
   await db.query('delete from users where email like $1', [`%+${RUN}@example.com`]);
 
   const after = await db.one<{ users: string; lots: string; sessions: string }>(

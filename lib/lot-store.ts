@@ -37,6 +37,69 @@ export async function getOverride(address: string): Promise<LotOverride | null> 
   return row ? overridesByAddress([row]).get(address) ?? null : null;
 }
 
+/**
+ * Records a purchase made without an account.
+ *
+ * This is what a payment webhook calls: at checkout there is no user, only the
+ * email the buyer gave the payment provider. The lot becomes theirs immediately
+ * and shows on the street; it cannot be customised until someone signs in with
+ * that email verified and `linkLotsToUser` hands it over.
+ *
+ * Idempotent for the same buyer, because payment providers retry webhooks.
+ */
+export async function purchaseLotForEmail(
+  address: string,
+  email: string,
+): Promise<StoreResult<LotOverride>> {
+  if (!isRealAddress(address)) return { ok: false, error: 'No such address in Marlow.' };
+  const buyer = email.trim().toLowerCase();
+  if (!buyer.includes('@')) return { ok: false, error: 'A buyer email is required.' };
+
+  const db = await getDb();
+  await db.query(
+    `insert into lots (address, owner_email, status, purchased_at)
+          values ($1, $2, 'sold', now())
+     on conflict (address) do update
+            set owner_email = excluded.owner_email,
+                status = 'sold',
+                purchased_at = coalesce(lots.purchased_at, now()),
+                updated_at = now()
+          where lots.owner_id is null
+            and (lots.owner_email is null or lower(lots.owner_email) = lower(excluded.owner_email))`,
+    [address, buyer],
+  );
+
+  const stored = await getOverride(address);
+  if (!stored) return { ok: false, error: 'Could not record that purchase.' };
+  if (stored.ownerEmail !== buyer) return { ok: false, error: 'That lot is already taken.' };
+  return { ok: true, value: stored };
+}
+
+/**
+ * Hands over every lot bought with this email to the account that has now
+ * proved it owns the address.
+ *
+ * The caller MUST pass an email the identity provider has verified. An
+ * unverified address here would let anyone claim a stranger's purchase simply
+ * by typing their email at sign-up, so the guard belongs at the call site and
+ * is restated in that call site's own comment.
+ */
+export async function linkLotsToUser(userId: string, verifiedEmail: string): Promise<string[]> {
+  const email = verifiedEmail.trim().toLowerCase();
+  if (!email.includes('@')) return [];
+
+  const db = await getDb();
+  const rows = await db.query<{ address: string }>(
+    `update lots
+        set owner_id = $1, updated_at = now()
+      where lower(owner_email) = $2
+        and owner_id is null
+      returning address`,
+    [userId, email],
+  );
+  return rows.map((r) => r.address);
+}
+
 export async function lotsOwnedBy(userId: string): Promise<LotOverride[]> {
   const db = await getDb();
   const rows = await db.query('select * from lots where owner_id = $1 order by address', [userId]);
@@ -59,7 +122,8 @@ export async function claimLot(address: string, userId: string): Promise<StoreRe
             set owner_id = excluded.owner_id,
                 status = 'sold',
                 updated_at = now()
-          where lots.owner_id is null`,
+          where lots.owner_id is null
+            and lots.owner_email is null`,
     [address, userId],
   );
 

@@ -17,6 +17,7 @@ import { notFound } from 'next/navigation';
 import BuildingPortrait from '@/components/BuildingPortrait';
 import LotEditor from '@/components/LotEditor';
 import ClaimButton from '@/components/ClaimButton';
+import StoreStats from '@/components/StoreStats';
 import BuyButton from '@/components/BuyButton';
 import StoreProfileForm from '@/components/StoreProfileForm';
 import { saveAction, saveProfileAction } from '@/app/actions';
@@ -32,6 +33,7 @@ import {
   logoHash,
 } from '@/lib/lot-store';
 import { currentUser } from '@/lib/session';
+import { statsFor } from '@/lib/stats';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,6 +94,7 @@ export default async function LotPage({
   const isMine = user !== null && lot.ownerId === user.id;
   const [profile, logo] = await Promise.all([getStoreProfile(address), logoHash(address)]);
   const logoUrl = logo ? `/api/logo/${encodeURIComponent(address)}?v=${logo}` : null;
+  const stats = isMine ? await statsFor(address) : null;
   const allowanceSpent =
     user !== null && !isMine && (await freeClaimCount(user.id)) >= FREE_LOTS_PER_ACCOUNT;
 
@@ -123,6 +126,8 @@ export default async function LotPage({
           ← Show it on {lot.street}
         </Link>
       </p>
+
+      <StoreStats address={lot.address} />
 
       {query.problem && PROBLEMS[query.problem] && (
         <p className="mw-error" role="alert">
@@ -187,7 +192,12 @@ export default async function LotPage({
                 they carry nofollow to stop the town becoming an SEO farm, and
                 noopener/noreferrer so the destination learns nothing.
               */}
-              <a href={profile.url} rel="nofollow noopener noreferrer" target="_blank">
+              <a
+                href={profile.url}
+                rel="nofollow noopener noreferrer"
+                target="_blank"
+                data-stat="link"
+              >
                 {displayUrl(profile.url)} ↗
               </a>
             </p>
@@ -201,6 +211,8 @@ export default async function LotPage({
                     href={socialUrl(platform.key, profile.socials[platform.key] as string)}
                     rel="nofollow noopener noreferrer"
                     target="_blank"
+                    data-stat="social"
+                    data-stat-target={platform.key}
                   >
                     {platform.label}
                     <small>@{profile.socials[platform.key]}</small>
@@ -214,6 +226,42 @@ export default async function LotPage({
 
       {isMine ? (
         <>
+          {stats && (
+            <>
+              <h2 className="mw-street-heading">
+                Your shop, last {stats.days} days
+              </h2>
+              <ul className="mw-stats">
+                <li>
+                  <strong>{stats.views.toLocaleString()}</strong>
+                  <span>opened your shop</span>
+                </li>
+                <li>
+                  <strong>{stats.linkClicks.toLocaleString()}</strong>
+                  <span>went on to your site</span>
+                </li>
+                <li>
+                  <strong>{stats.socialTotal.toLocaleString()}</strong>
+                  <span>clicked a social link</span>
+                </li>
+              </ul>
+
+              {stats.socialClicks.length > 0 && (
+                <ul className="mw-stat-breakdown">
+                  {stats.socialClicks.map((social) => (
+                    <li key={social.key}>
+                      {social.label} <strong>{social.clicks.toLocaleString()}</strong>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <p className="mw-hint">
+                Counts only, never who. Marlow records nothing about the people who visit.
+              </p>
+            </>
+          )}
+
           <h2 className="mw-street-heading">Change your shop</h2>
           <p className="mw-sub">
             Changes go live on the street as soon as you save. The shape of the building comes from

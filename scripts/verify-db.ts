@@ -35,6 +35,7 @@ import {
   deleteLogo,
 } from '@/lib/lot-store';
 import { normalizeHandle, normalizeUrl, socialUrl, MAX_LOGO_BYTES } from '@/lib/store-profile';
+import { recordStat, statsFor } from '@/lib/stats';
 import { applyOverrides, buildInventory, normalizeSignText } from '@/lib/inventory';
 import { generateLots } from '@/lib/lots';
 import { FACADE_PALETTE } from '@/lib/palette';
@@ -364,6 +365,31 @@ async function main() {
   check('49aq. a malformed handle is refused on save', !badHandle.ok);
 
   check('49ar. a stranger cannot edit a shop profile', !(await saveStoreProfile(shop, ada.id, { storeBio: 'mine now' })).ok);
+
+  /* ---- What an owner gets back ---- */
+
+  check('49bg. a view is counted', await recordStat(shop, 'view'));
+  await recordStat(shop, 'view');
+  await recordStat(shop, 'link');
+  check('49bh. a social click needs a real platform', await recordStat(shop, 'social', 'instagram'));
+  check(
+    '49bi. an invented platform is refused',
+    !(await recordStat(shop, 'social', 'myspace')),
+  );
+  check('49bj. an unknown kind is refused', !(await recordStat(shop, 'sniff')));
+  check('49bk. an invented address is refused', !(await recordStat('1 Nowhere Road', 'view')));
+
+  const counted = await statsFor(shop);
+  check('49bl. views add up', counted.views === 2, String(counted.views));
+  check('49bm. link clicks are separate from views', counted.linkClicks === 1, String(counted.linkClicks));
+  check('49bn. social clicks are attributed to the platform',
+    counted.socialClicks.length === 1 && counted.socialClicks[0].key === 'instagram');
+  check('49bo. a platform nobody clicked is not listed',
+    !counted.socialClicks.some((sc) => sc.key === 'x'));
+  check(
+    '49bp. a shop nobody visited reads zero, not null',
+    (await statsFor(free[6].address)).views === 0,
+  );
 
   /* ---- Logos ---- */
   const png = Buffer.from(

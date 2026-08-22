@@ -338,6 +338,54 @@ body {
   background: #f7d7d4;
 }
 
+/* An owner's own numbers. Three figures, no chart — the shape of a month is
+   not the question, "is this doing anything for me" is. */
+.mw-stats {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.mw-stats li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+  background: var(--mw-panel);
+}
+
+.mw-stats strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.mw-stats span {
+  font-size: 13px;
+  color: #6b6b64;
+}
+
+.mw-stat-breakdown {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mw-stat-breakdown li {
+  padding: 5px 10px;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+  background: #f4efe4;
+  font-size: 13px;
+}
+
 /* Held back as a prize: not for sale, but not somebody's shop either. */
 .mw-card-state[data-state='giveaway'] {
   background: #f5ce3e;

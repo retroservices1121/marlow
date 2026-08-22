@@ -67,8 +67,7 @@ export default async function StreetPage({
           {lots.length} addresses · {forSale} for sale.{' '}
           {street.main
             ? 'Walk along and turn into a side street where one opens.'
-            : `Runs off ${back?.name ?? 'Main Street'} to a dead end.`}{' '}
-          <Link href="/streets">See every address</Link>.
+            : `Runs off ${back?.name ?? 'Main Street'} to a dead end.`}
         </p>
       </header>
 
@@ -76,6 +75,11 @@ export default async function StreetPage({
         lots={lots}
         focusAddress={focusAddress}
         logoUrls={logoUrls}
+        action={
+          <Link className="mw-chip" href="/streets">
+            See every address
+          </Link>
+        }
         overlay={
           <MarlowIntro
             total={everywhere.length}

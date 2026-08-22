@@ -122,6 +122,24 @@ body {
   padding: 16px 20px;
 }
 
+/* The time buttons, as their own wrapping run. */
+.mw-control-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/*
+ * Pushed to the far side of the row, opposite the clock. `auto` rather than a
+ * fixed width so it stays at the edge however many time buttons there are, and
+ * it drops onto its own line rather than crushing them when the screen is
+ * narrow.
+ */
+.mw-controls-end {
+  margin-left: auto;
+}
+
 .mw-legend {
   width: 100%;
   margin: 0 0 2px;

@@ -34,12 +34,15 @@ export default function StreetView({
   lots,
   focusAddress = null,
   logoUrls,
+  action,
   overlay,
 }: {
   lots: OwnedLot[];
   focusAddress?: string | null;
   /** Logo per address, for every owned shop on this street. */
   logoUrls?: Record<string, string>;
+  /** Sits at the right-hand end of the control row, opposite the clock. */
+  action?: ReactNode;
   /** Rendered over the street — the pitch, when somebody arrives here first. */
   overlay?: ReactNode;
 }) {
@@ -176,27 +179,31 @@ export default function StreetView({
 
   return (
     <>
-      <div className="mw-controls" role="group" aria-label="Time of day">
+      <div className="mw-controls">
         <p className="mw-legend">Time of day</p>
-        <button
-          type="button"
-          className="mw-chip"
-          aria-pressed={mode === 'auto'}
-          onClick={() => setMode('auto')}
-        >
-          Auto ({clockTime})
-        </button>
-        {TIMES_OF_DAY.map((time) => (
+        <div className="mw-control-group" role="group" aria-label="Time of day">
           <button
-            key={time}
             type="button"
             className="mw-chip"
-            aria-pressed={mode === time}
-            onClick={() => setMode(time)}
+            aria-pressed={mode === 'auto'}
+            onClick={() => setMode('auto')}
           >
-            {time}
+            Auto ({clockTime})
           </button>
-        ))}
+          {TIMES_OF_DAY.map((time) => (
+            <button
+              key={time}
+              type="button"
+              className="mw-chip"
+              aria-pressed={mode === time}
+              onClick={() => setMode(time)}
+            >
+              {time}
+            </button>
+          ))}
+        </div>
+
+        {action && <div className="mw-controls-end">{action}</div>}
       </div>
 
       <div className="mw-stage">

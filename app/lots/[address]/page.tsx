@@ -12,6 +12,7 @@ import { notFound } from 'next/navigation';
 import BuildingPortrait from '@/components/BuildingPortrait';
 import LotEditor from '@/components/LotEditor';
 import ClaimButton from '@/components/ClaimButton';
+import BuyButton from '@/components/BuyButton';
 import StoreProfileForm from '@/components/StoreProfileForm';
 import { saveAction, saveProfileAction } from '@/app/actions';
 import { SOCIAL_PLATFORMS, displayUrl, socialUrl } from '@/lib/store-profile';
@@ -44,8 +45,36 @@ const TYPE_LABEL: Record<string, string> = {
   civic: 'Civic building',
 };
 
-export default async function LotPage({ params }: { params: Promise<{ address: string }> }) {
-  const { address: raw } = await params;
+/**
+ * What the checkout route can send somebody back with. Codes rather than text,
+ * so a crafted link cannot put words of its own choosing on this page.
+ */
+const PROBLEMS: Record<string, string> = {
+  'unknown-address': 'There is no such address in Marlow.',
+  'already-taken': 'Somebody took that lot first. Nothing has been charged.',
+  'checkout-failed': 'The checkout would not start. Nothing has been charged — try again.',
+};
+
+/**
+ * Selling is off until it is switched on deliberately.
+ *
+ * Marlow gave lots away to get started, and having both a free claim and a
+ * price on the same page says neither is real. Flipping MARLOW_SALES to `paid`
+ * is the moment the town starts charging; `npm run grant` keeps working either
+ * way, so deliberate giveaways are unaffected.
+ */
+function sellingLots(): boolean {
+  return process.env.MARLOW_SALES === 'paid';
+}
+
+export default async function LotPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ address: string }>;
+  searchParams: Promise<{ bought?: string; problem?: string }>;
+}) {
+  const [{ address: raw }, query] = await Promise.all([params, searchParams]);
   const address = decodeURIComponent(raw);
   if (!isRealAddress(address)) notFound();
 
@@ -66,6 +95,19 @@ export default async function LotPage({ params }: { params: Promise<{ address: s
       <p className="mw-crumb">
         <Link href={`/demo?lot=${encodeURIComponent(lot.address)}`}>← Show it on the street</Link>
       </p>
+
+      {query.problem && PROBLEMS[query.problem] && (
+        <p className="mw-error" role="alert">
+          {PROBLEMS[query.problem]}
+        </p>
+      )}
+
+      {query.bought && lot.awaitingOwner && (
+        <p className="mw-bought" role="status">
+          <strong>{lot.address} is yours.</strong> Sign in with the email you used at checkout to
+          choose your sign, your colours and what gets built here.
+        </p>
+      )}
 
       <div className="mw-storefront">
         <BuildingPortrait
@@ -167,7 +209,15 @@ export default async function LotPage({ params }: { params: Promise<{ address: s
           This lot has been bought but its owner has not signed in yet. Sign in with the email used
           at checkout to take it over.
         </p>
-      ) : lot.claimed ? null : (
+      ) : lot.claimed ? null : sellingLots() ? (
+        <>
+          <p className="mw-sub">
+            Nothing is built here yet. Take it and you choose the sign, the colours and what kind of
+            building goes up — and it stays yours.
+          </p>
+          <BuyButton address={lot.address} price={priceLabel(lot)} />
+        </>
+      ) : (
         <>
           <p className="mw-sub">
             Nothing is built here yet. Claim it and you choose the sign, the colours and what kind of

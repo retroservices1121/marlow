@@ -320,6 +320,17 @@ body {
   background: #f7d7d4;
 }
 
+/* The moment after paying, before signing in — the one thing on the page. */
+.mw-bought {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+  background: #d9f0d5;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .mw-ok {
   background: #d8ecd2;
 }

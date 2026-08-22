@@ -3,9 +3,36 @@ import type { Metadata, Viewport } from 'next';
 import Nav from '@/components/Nav';
 import './globals.css';
 
+/*
+ * What a link to Marlow says about itself.
+ *
+ * This text is the shop window everywhere the town is not: search results, a
+ * pasted link, a shared post. "A hand-drawn town where every building belongs
+ * to somebody" described the thing without ever saying what it is for, so
+ * somebody seeing it cold had no idea they could buy anything.
+ *
+ * `metadataBase` is what makes the icon and any social image resolve to
+ * absolute URLs — relative ones are ignored by every service that unfurls a
+ * link.
+ */
 export const metadata: Metadata = {
-  title: 'Marlow',
-  description: 'A hand-drawn town where every building belongs to somebody.',
+  metadataBase: new URL(process.env.MARLOW_URL ?? 'https://marlow.town'),
+  title: 'Marlow — your own virtual storefront',
+  description:
+    'Own a virtual storefront in Marlow, a hand-drawn town of 1,000 addresses. Put your sign over the door and your links inside. From $15.',
+  openGraph: {
+    type: 'website',
+    siteName: 'Marlow',
+    title: 'Marlow — your own virtual storefront',
+    description:
+      'A hand-drawn town of 1,000 shopfronts. Take an address, put your sign over the door, and send people on to your site. From $15.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Marlow — your own virtual storefront',
+    description:
+      'A hand-drawn town of 1,000 shopfronts. Take an address, put your sign over the door, and send people on to your site. From $15.',
+  },
 };
 
 export const viewport: Viewport = {

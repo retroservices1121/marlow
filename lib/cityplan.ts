@@ -18,8 +18,14 @@ import { DISTRICTS, junctionsOn, type DistrictDef, type Lot, type StreetDef } fr
 export const DEPTH = 96;
 /** Width of a carriageway plus its pavements. */
 export const ROAD = 150;
-/** Clear ground between one district and the next. */
-export const DISTRICT_GAP = 700;
+/**
+ * Clear ground between one district and the next.
+ *
+ * Tight on purpose. At 700 the districts read as five separate estates with a
+ * void down the middle, and zooming into the centre of the plan arrived at
+ * grass. Close together they read as one city.
+ */
+export const DISTRICT_GAP = 340;
 
 export type Facing = 'north' | 'east';
 

@@ -8,6 +8,7 @@
 
 import Link from 'next/link';
 import CityLoader from '@/components/three/CityLoader';
+import CityIntro from '@/components/CityIntro';
 import { buildInventory } from '@/lib/inventory';
 import { getOverrides } from '@/lib/lot-store';
 import { DISTRICTS } from '@/lib/lots';
@@ -17,30 +18,23 @@ export const dynamic = 'force-dynamic';
 export default async function CityPage() {
   const lots = buildInventory(await getOverrides());
   const taken = lots.filter((lot) => lot.claimed).length;
-  const share = Math.round((taken / lots.length) * 100);
 
   return (
-    <main className="mw-page">
-      <header className="mw-header">
-        <h1 className="mw-title">Marlow</h1>
-        <p className="mw-sub">
-          {lots.length} addresses across {DISTRICTS.length} districts.{' '}
-          <strong>
-            {taken} taken · {lots.length - taken} still for sale
-          </strong>
-          . Drag to move, scroll to zoom, click a building to see its lot — or{' '}
-          <Link href="/street/main-street">walk a street</Link> instead.
-        </p>
-        <div className="mw-fill" role="img" aria-label={`${share} per cent of Marlow is taken`}>
-          <span style={{ width: `${Math.max(share, 1)}%` }} />
-        </div>
-      </header>
+    <main className="mw-page mw-page-flush">
+      {/* Kept for crawlers and for anyone arriving with the canvas unpainted. */}
+      <h1 className="mw-visually-hidden">
+        Marlow — {lots.length} shopfronts across {DISTRICTS.length} districts, {lots.length - taken}{' '}
+        still for sale
+      </h1>
 
-      <CityLoader lots={lots} />
+      <CityLoader lots={lots}>
+        <CityIntro total={lots.length} taken={taken} districts={DISTRICTS.length} />
+      </CityLoader>
 
       <p className="mw-meta">
         Tall and coloured is taken; low and pale is for sale.{' '}
-        <Link href="/streets">Browse every address</Link>.
+        <Link href="/streets">Browse every address</Link> or{' '}
+        <Link href="/street/main-street">walk a street</Link>.
       </p>
     </main>
   );

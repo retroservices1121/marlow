@@ -207,12 +207,23 @@ function MapControls({
 }) {
   const { camera, gl, size } = useThree();
   /*
-   * Opens on Downtown rather than the middle of the plan. The geometric centre
-   * of five districts is the gap between them, so zooming in from there walks
-   * you into empty ground.
+   * Centred on the plan, so the opening shot frames the whole city rather than
+   * hanging it off one corner. Arriving in empty ground when zooming was fixed
+   * by closing the gaps between districts and by zooming toward the cursor,
+   * not by looking somewhere else.
    */
-  const home = plan.districts[0] ?? { x: 0, y: 0, w: plan.width, d: plan.depth };
-  const target = useRef(new THREE.Vector3(home.x + home.w / 2, 0, home.y + home.d / 2));
+  /*
+   * The mean of the districts rather than the middle of the bounding box. Five
+   * districts in two columns leave the last quadrant empty, so the box centre
+   * sits in open ground and the city rides high in frame.
+   */
+  const centre = plan.districts.length
+    ? plan.districts.reduce(
+        (acc, d) => ({ x: acc.x + (d.x + d.w / 2) / plan.districts.length, z: acc.z + (d.y + d.d / 2) / plan.districts.length }),
+        { x: 0, z: 0 },
+      )
+    : { x: plan.width / 2, z: plan.depth / 2 };
+  const target = useRef(new THREE.Vector3(centre.x, 0, centre.z));
   const drag = useRef<{ x: number; y: number } | null>(null);
   /** Every finger currently down, so a second one can start a pinch. */
   const touches = useRef(new Map<number, { x: number; y: number }>());
@@ -408,12 +419,12 @@ export default function CityMap({
   const reach = Math.max(plan.width, plan.depth);
 
   return (
-    <div className="mw-map-stage">
+    <>
       <Canvas
         shadows
         orthographic
         camera={{ near: -reach * 4, far: reach * 6, zoom: 1 }}
-        style={{ background: palette.sky }}
+        style={{ background: palette.sky, position: 'absolute', inset: 0 }}
         dpr={[1, 2]}
       >
         <ambientLight intensity={0.78} />
@@ -468,6 +479,6 @@ export default function CityMap({
           </small>
         </div>
       )}
-    </div>
+    </>
   );
 }

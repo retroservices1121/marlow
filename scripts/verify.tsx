@@ -234,7 +234,32 @@ check('21. tiers are corner/main/side only', new Set(lots.map((l) => l.tier)).si
 const svg = renderStreet(lots, 'day');
 check('22. exactly one root <svg>', (svg.match(/<svg/g) || []).length === 1);
 check('23. no filters/gradients/opacity in output', !/<filter|<linearGradient|<radialGradient|opacity=/.test(svg));
-check('24. no external image requests', !/<image|url\(http/.test(svg));
+check('24. the street loads no images at all', !/<image/.test(svg) && !/url\(http/.test(svg));
+
+/*
+ * One deliberate exception to "no image files": the building someone was linked
+ * to shows its store logo on its marker. Exactly one image, same-origin, and
+ * only when a highlight is asked for.
+ */
+const highlighted = renderToStaticMarkup(
+  <Street
+    lots={lots}
+    timeOfDay="day"
+    highlightAddress={lots[0].address}
+    highlightLogoUrl={`/api/logo/${encodeURIComponent(lots[0].address)}?v=abc`}
+  />,
+);
+const images = highlighted.match(/<image[^>]*>/g) || [];
+check('24a. a highlighted building shows exactly one logo', images.length === 1, String(images.length));
+check(
+  '24b. that logo is served from our own origin',
+  images.every((tag) => /href="\/api\/logo\//.test(tag)),
+  images.join(' '),
+);
+check(
+  '24c. no logo is loaded unless one is asked for',
+  !/<image/.test(renderStreet(lots, 'day')),
+);
 check('25. uniform stroke width', new Set((svg.match(/stroke-width="[^"]*"/g) || [])).size === 2, [...new Set(svg.match(/stroke-width="[^"]*"/g) || [])].join(' '));
 check('26. buildings are focusable', (svg.match(/tabindex="0"/g) || []).length === 120);
 check('27. night lights windows', renderStreet(lots, 'night').includes('#FFD98A'));

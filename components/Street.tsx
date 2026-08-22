@@ -58,6 +58,10 @@ export type StreetProps = {
   className?: string;
   /** Turns each building into a link. Omit for a plain, non-interactive street. */
   hrefForLot?: (lot: Lot) => string;
+  /** Address someone was linked directly to, pinned so it stands out. */
+  highlightAddress?: string | null;
+  /** Logo for that one building, if its store has one. */
+  highlightLogoUrl?: string | null;
 };
 
 type Placement = {
@@ -160,7 +164,14 @@ function placeFurniture(placements: Placement[]): FurniturePlacement[] {
   return out;
 }
 
-export default function Street({ lots, timeOfDay, className, hrefForLot }: StreetProps) {
+export default function Street({
+  lots,
+  timeOfDay,
+  className,
+  hrefForLot,
+  highlightAddress,
+  highlightLogoUrl,
+}: StreetProps) {
   const palette = TIME_PALETTES[timeOfDay];
   const stroke = palette.stroke;
   const { placements, blocks, totalWidth } = layout(lots);
@@ -334,6 +345,8 @@ export default function Street({ lots, timeOfDay, className, hrefForLot }: Stree
           x={x}
           baseline={BASELINE}
           href={hrefForLot?.(lot)}
+          highlighted={lot.address === highlightAddress}
+          logoUrl={lot.address === highlightAddress ? highlightLogoUrl : null}
         />
       ))}
 

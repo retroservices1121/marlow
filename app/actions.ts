@@ -12,7 +12,8 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { authenticate, createSession, registerUser } from '@/lib/auth';
 import { clearSession, currentUser, setSessionCookie } from '@/lib/session';
-import { claimLot, releaseLot, saveLotChoices } from '@/lib/lot-store';
+import { claimLot, deleteLogo, releaseLot, saveLogo, saveLotChoices, saveStoreProfile } from '@/lib/lot-store';
+import { SOCIAL_PLATFORMS } from '@/lib/store-profile';
 
 export type ActionState = { error?: string; message?: string };
 
@@ -73,6 +74,39 @@ export async function saveAction(_prev: ActionState, data: FormData): Promise<Ac
   revalidatePath('/demo');
   revalidatePath('/lots');
   return { message: 'Saved. Your building is on the street.' };
+}
+
+/** Saves the shop's public profile: link, bio and social handles. */
+export async function saveProfileAction(_prev: ActionState, data: FormData): Promise<ActionState> {
+  const user = await currentUser();
+  if (!user) return { error: 'Sign in to edit this shop.' };
+  const address = str(data, 'address');
+
+  const socials = Object.fromEntries(
+    SOCIAL_PLATFORMS.map((platform) => [platform.key, str(data, platform.key)]),
+  );
+
+  const result = await saveStoreProfile(address, user.id, {
+    storeUrl: str(data, 'storeUrl'),
+    storeBio: str(data, 'storeBio'),
+    ...socials,
+  });
+  if (!result.ok) return { error: result.error };
+
+  // A logo is optional on every save; an empty file input means "leave it".
+  const file = data.get('logo');
+  if (file instanceof File && file.size > 0) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const stored = await saveLogo(address, user.id, bytes, file.type);
+    if (!stored.ok) return { error: stored.error };
+  }
+  if (str(data, 'removeLogo') === 'yes') {
+    await deleteLogo(address, user.id);
+  }
+
+  revalidatePath('/demo');
+  revalidatePath(`/lots/${address}`);
+  return { message: 'Saved. Your shop page is live.' };
 }
 
 export async function releaseAction(_prev: ActionState, data: FormData): Promise<ActionState> {

@@ -35,8 +35,15 @@ import {
   lotsOwnedBy,
   purchaseLotForEmail,
   releaseLot,
+  saveLogo,
   saveLotChoices,
+  saveStoreProfile,
+  getStoreProfile,
+  getLogo,
+  logoHash,
+  deleteLogo,
 } from '@/lib/lot-store';
+import { normalizeHandle, normalizeUrl, socialUrl, MAX_LOGO_BYTES } from '@/lib/store-profile';
 import { applyOverrides, buildInventory, normalizeSignText } from '@/lib/inventory';
 import { generateLots } from '@/lib/lots';
 import { FACADE_PALETTE } from '@/lib/palette';
@@ -323,6 +330,70 @@ async function main() {
 
   await releaseLot(bought, ada.id);
 
+  /* ---- Store profile ----------------------------------------------------
+   * Every field here is attacker-controlled and ends up on a public page, so
+   * the refusals matter more than the successes.
+   */
+  const shop = free[5].address;
+  await claimLot(shop, bob.id);
+
+  const profileSaved = await saveStoreProfile(shop, bob.id, {
+    storeUrl: 'nike.com',
+    storeBio: '  Trainers   and   such.  ',
+    x: '@nike',
+    instagram: 'https://instagram.com/nike/',
+    github: '',
+  });
+  check('49ae. a shop profile can be saved', profileSaved.ok, errOf(profileSaved));
+  check('49af. a bare domain becomes an absolute https url', profileSaved.ok && profileSaved.value.url === 'https://nike.com/');
+  check('49ag. the bio is collapsed and trimmed', profileSaved.ok && profileSaved.value.bio === 'Trainers and such.');
+  check('49ah. an @ prefix is stripped from a handle', profileSaved.ok && profileSaved.value.socials.x === 'nike');
+  check('49ai. a pasted profile url reduces to a handle', profileSaved.ok && profileSaved.value.socials.instagram === 'nike');
+  check('49aj. a blank social is cleared, not stored', profileSaved.ok && profileSaved.value.socials.github === undefined);
+
+  // The link is built from a fixed prefix, so a handle cannot redirect it.
+  check('49ak. social links are built from our own prefix', socialUrl('x', 'nike') === 'https://x.com/nike');
+
+  for (const nasty of ['javascript:alert(1)', 'data:text/html,<script>x</script>', 'file:///etc/passwd', 'vbscript:msgbox']) {
+    check(`49al. refuses ${nasty.split(':')[0]}: urls`, normalizeUrl(nasty) === null, nasty);
+  }
+  const badUrl = await saveStoreProfile(shop, bob.id, { storeUrl: 'javascript:alert(1)' });
+  check('49am. a dangerous url is refused on save', !badUrl.ok);
+  check('49an. the previous url survives a refused save', (await getStoreProfile(shop))?.url === 'https://nike.com/');
+
+  check('49ao. a handle cannot smuggle a path', normalizeHandle('nike/../evil') === null);
+  check('49ap. a handle cannot contain a scheme', normalizeHandle('javascript:alert(1)') === null);
+  const badHandle = await saveStoreProfile(shop, bob.id, { x: 'not a handle!' });
+  check('49aq. a malformed handle is refused on save', !badHandle.ok);
+
+  check('49ar. a stranger cannot edit a shop profile', !(await saveStoreProfile(shop, ada.id, { storeBio: 'mine now' })).ok);
+
+  /* ---- Logos ---- */
+  const png = Buffer.from(
+    '89504e470d0a1a0a0000000d494844520000000100000001080600000' + '01f15c4890000000a49444154789c6300010000050001' + '0d0a2db40000000049454e44ae426082',
+    'hex',
+  );
+  const savedLogo = await saveLogo(shop, bob.id, new Uint8Array(png), 'image/png');
+  check('49as. a real png is accepted', savedLogo.ok, errOf(savedLogo));
+  const fetched = await getLogo(shop);
+  check('49at. the logo comes back with the sniffed type', fetched?.contentType === 'image/png');
+  check('49au. the hash is exposed for cache-busting', (await logoHash(shop)) === (savedLogo.ok ? savedLogo.value : ''));
+
+  // A file that merely claims to be a PNG must not be served back as one.
+  const notAnImage = new Uint8Array(Buffer.from('<svg onload=alert(1)></svg>', 'utf8'));
+  check('49av. bytes that are not an image are refused', !(await saveLogo(shop, bob.id, notAnImage, 'image/png')).ok);
+  const svg = new Uint8Array(Buffer.from('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>', 'utf8'));
+  check('49aw. svg is refused even when declared as svg', !(await saveLogo(shop, bob.id, svg, 'image/svg+xml')).ok);
+  check('49ax. an oversized file is refused', !(await saveLogo(shop, bob.id, new Uint8Array(MAX_LOGO_BYTES + 1), 'image/png')).ok);
+  check('49ay. an empty file is refused', !(await saveLogo(shop, bob.id, new Uint8Array(0), 'image/png')).ok);
+  check('49az. the good logo survived every refused upload', (await getLogo(shop))?.contentType === 'image/png');
+  check('49ba. a stranger cannot upload a logo', !(await saveLogo(shop, ada.id, new Uint8Array(png), 'image/png')).ok);
+  check('49bb. a stranger cannot delete a logo', !(await deleteLogo(shop, ada.id)).ok);
+  check('49bc. the owner can delete it', (await deleteLogo(shop, bob.id)).ok);
+  check('49bd. it is gone', (await logoHash(shop)) === null);
+
+  await releaseLot(shop, bob.id);
+
   /* ---- Normalisation edge cases ---- */
   check('47. sign text is capped at 18 characters', normalizeSignText('ABCDEFGHIJKLMNOPQRSTUVWXYZ')?.length === 18);
   check('48. sign text strips scripting characters', normalizeSignText('<script>hi</script>') === 'SCRIPTHISCRIPT');
@@ -334,7 +405,7 @@ async function main() {
    * real database: it asserts the row counts came back to where they started.
    */
   await db.query('delete from lots where address = any($1::text[])', [
-    [address, unclaimed, bought, freeA, freeB],
+    [address, unclaimed, bought, freeA, freeB, shop],
   ]);
   await db.query('delete from users where email like $1', [`%+${RUN}@example.com`]);
 

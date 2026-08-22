@@ -12,6 +12,7 @@
 import { subRandom } from '@/lib/hash';
 import type { BuildingType, Status } from '@/lib/lots';
 import {
+  CORNER_RADIUS,
   STROKE_WIDTH,
   TIME_PALETTES,
   VACANT_SHELL,
@@ -60,6 +61,16 @@ export type BuildingProps = {
    * figure, exactly as the renderer spec describes it.
    */
   href?: string;
+  /** Marks this building out when someone has been linked straight to it. */
+  highlighted?: boolean;
+  /**
+   * The store's logo, shown on the marker of a highlighted building only.
+   *
+   * The town is otherwise pure vector — 120 inline logos would be megabytes of
+   * base64 on every street render, and illegible at street scale besides. One
+   * image, for the one building you were pointed at, is affordable.
+   */
+  logoUrl?: string | null;
 };
 
 /* ---- Derived geometry -------------------------------------------------- */
@@ -226,6 +237,8 @@ export default function Building({
   x,
   baseline = DEFAULT_BASELINE,
   href,
+  highlighted = false,
+  logoUrl = null,
 }: BuildingProps) {
   const geo = deriveGeometry(address, buildingType);
   const palette = TIME_PALETTES[timeOfDay];
@@ -343,7 +356,9 @@ export default function Building({
 
   /* Vacant: hoarding across the lower two thirds of the shell. */
   const hoardingHeight = (H * 2) / 3;
-  const clipId = `hoard-${address.replace(/[^a-zA-Z0-9]/g, '-')}`;
+  const slug = address.replace(/[^a-zA-Z0-9]/g, '-');
+  const clipId = `hoard-${slug}`;
+  const logoClipId = `logo-${slug}`;
 
   const label = vacant
     ? `Vacant lot, ${number} ${street}. For sale.`
@@ -355,6 +370,10 @@ export default function Building({
       tabIndex={href ? undefined : 0}
       role="img"
       aria-label={label}
+      // Addressable from the client, so a deep link can find and centre it
+      // without anyone recomputing the layout in pixels.
+      data-address={address}
+      data-street={street}
       transform={`translate(${x} ${baseline})`}
     >
       <g transform={`rotate(${geo.wonk} ${W / 2} 0)`}>
@@ -426,6 +445,48 @@ export default function Building({
               stroke={stroke}
             />
           </>
+        )}
+
+        {/* A marker for whoever was sent this exact address, carrying the
+            store's logo when it has one. */}
+        {highlighted && (
+          <g className="mw-marker" transform={`translate(${W / 2} ${-(H + geo.roofHeight) - 18})`}>
+            <polygon points="0,0 15,-19 -15,-19" fill="#E8544B" stroke={stroke} {...INK} />
+            {logoUrl ? (
+              <>
+                <defs>
+                  <clipPath id={logoClipId}>
+                    <rect x={-30} y={-79} width={60} height={60} rx={CORNER_RADIUS} />
+                  </clipPath>
+                </defs>
+                <rect x={-30} y={-79} width={60} height={60} rx={CORNER_RADIUS} fill="#FFF6E5" stroke="none" />
+                <image
+                  href={logoUrl}
+                  x={-30}
+                  y={-79}
+                  width={60}
+                  height={60}
+                  preserveAspectRatio="xMidYMid meet"
+                  clipPath={`url(#${logoClipId})`}
+                />
+                <rect
+                  x={-30}
+                  y={-79}
+                  width={60}
+                  height={60}
+                  rx={CORNER_RADIUS}
+                  fill="none"
+                  stroke={stroke}
+                  {...INK}
+                />
+              </>
+            ) : (
+              <>
+                <rect x={-15} y={-45} width={30} height={26} rx={CORNER_RADIUS} fill="#E8544B" stroke={stroke} {...INK} />
+                <circle cx={0} cy={-32} r={5.5} fill="#FFF6E5" stroke={stroke} {...INK} />
+              </>
+            )}
+          </g>
         )}
 
         {/* Keyboard focus ring — CSS reveals it on :focus-visible only. */}

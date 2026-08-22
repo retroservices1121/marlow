@@ -15,6 +15,18 @@ import {
   type LotOverride,
 } from './inventory';
 import { generateLots, type BuildingType } from './lots';
+import {
+  isAllowedLogoType,
+  logoProblem,
+  normalizeBio,
+  normalizeHandle,
+  normalizeUrl,
+  sniffImageType,
+  SOCIAL_PLATFORMS,
+  type SocialKey,
+  type StoreProfile,
+} from './store-profile';
+import { createHash } from 'crypto';
 
 /** Addresses that actually exist in the inventory. Guards against invented lots. */
 let validAddresses: Set<string> | null = null;
@@ -122,6 +134,194 @@ export async function linkLotsToUser(userId: string, verifiedEmail: string): Pro
     [userId, email],
   );
   return rows.map((r) => r.address);
+}
+
+/* ---- Store profile ----------------------------------------------------- */
+
+const SOCIAL_COLUMNS: Record<SocialKey, string> = {
+  x: 'social_x',
+  instagram: 'social_instagram',
+  tiktok: 'social_tiktok',
+  linkedin: 'social_linkedin',
+  github: 'social_github',
+};
+
+type ProfileRow = Record<string, unknown> & { store_url?: unknown; store_bio?: unknown };
+
+function rowToProfile(row: ProfileRow, hasLogo: boolean): StoreProfile {
+  const socials: Partial<Record<SocialKey, string>> = {};
+  for (const platform of SOCIAL_PLATFORMS) {
+    // Re-validated on the way out: a row written before a rule tightened, or by
+    // hand, must not reach an href unchecked.
+    const handle = normalizeHandle(row[SOCIAL_COLUMNS[platform.key]]);
+    if (handle) socials[platform.key] = handle;
+  }
+  return {
+    url: normalizeUrl(row.store_url),
+    bio: normalizeBio(row.store_bio),
+    socials,
+    hasLogo,
+  };
+}
+
+export async function getStoreProfile(address: string): Promise<StoreProfile | null> {
+  const db = await getDb();
+  const row = await db.one<ProfileRow>('select * from lots where address = $1', [address]);
+  if (!row) return null;
+  const logo = await db.one<{ hash: string }>('select hash from lot_logos where address = $1', [
+    address,
+  ]);
+  return rowToProfile(row, logo !== null);
+}
+
+export type StoreProfileInput = {
+  storeUrl?: unknown;
+  storeBio?: unknown;
+} & Partial<Record<SocialKey, unknown>>;
+
+/**
+ * Saves the public profile. Blank clears a field, which is the only way to take
+ * something down, so an empty string is meaningful rather than ignored.
+ */
+export async function saveStoreProfile(
+  address: string,
+  userId: string,
+  input: StoreProfileInput,
+): Promise<StoreResult<StoreProfile>> {
+  const stored = await getOverride(address);
+  if (!stored) return { ok: false, error: 'Claim this lot before editing it.' };
+  if (stored.ownerId !== userId) return { ok: false, error: 'You do not own that lot.' };
+
+  const blank = (value: unknown) => typeof value === 'string' && value.trim().length === 0;
+
+  let storeUrl: string | null = null;
+  if (input.storeUrl !== undefined && !blank(input.storeUrl)) {
+    storeUrl = normalizeUrl(input.storeUrl);
+    if (!storeUrl) return { ok: false, error: 'That website address does not look right.' };
+  }
+
+  let storeBio: string | null = null;
+  if (input.storeBio !== undefined && !blank(input.storeBio)) {
+    storeBio = normalizeBio(input.storeBio);
+  }
+
+  const handles: Partial<Record<SocialKey, string | null>> = {};
+  for (const platform of SOCIAL_PLATFORMS) {
+    const raw = input[platform.key];
+    if (raw === undefined || blank(raw)) {
+      handles[platform.key] = null;
+      continue;
+    }
+    const handle = normalizeHandle(raw);
+    if (!handle) return { ok: false, error: `That ${platform.label} handle does not look right.` };
+    handles[platform.key] = handle;
+  }
+
+  const db = await getDb();
+  await db.query(
+    `update lots
+        set store_url = $2, store_bio = $3,
+            social_x = $4, social_instagram = $5, social_tiktok = $6,
+            social_linkedin = $7, social_github = $8,
+            updated_at = now()
+      where address = $1 and owner_id = $9`,
+    [
+      address,
+      storeUrl,
+      storeBio,
+      handles.x ?? null,
+      handles.instagram ?? null,
+      handles.tiktok ?? null,
+      handles.linkedin ?? null,
+      handles.github ?? null,
+      userId,
+    ],
+  );
+
+  const profile = await getStoreProfile(address);
+  return profile ? { ok: true, value: profile } : { ok: false, error: 'Could not save that.' };
+}
+
+/* ---- Logos ------------------------------------------------------------- */
+
+export type StoredLogo = { bytes: Buffer; contentType: string; hash: string };
+
+/**
+ * Stores a logo, trusting the bytes rather than the browser.
+ *
+ * The declared content type is ignored in favour of the file's magic number:
+ * these bytes get served back from our own origin, and a type we never verified
+ * is how an "image" ends up being interpreted as something else.
+ */
+export async function saveLogo(
+  address: string,
+  userId: string,
+  data: Uint8Array,
+  _declaredType?: string,
+): Promise<StoreResult<string>> {
+  const stored = await getOverride(address);
+  if (!stored) return { ok: false, error: 'Claim this lot before editing it.' };
+  if (stored.ownerId !== userId) return { ok: false, error: 'You do not own that lot.' };
+
+  const problem = logoProblem(data);
+  if (problem) return { ok: false, error: problem };
+
+  const contentType = sniffImageType(data);
+  if (!contentType || !isAllowedLogoType(contentType)) {
+    return { ok: false, error: 'Logos must be a PNG, JPEG or WebP image.' };
+  }
+
+  const bytes = Buffer.from(data);
+  const hash = createHash('sha256').update(bytes).digest('hex').slice(0, 32);
+
+  const db = await getDb();
+  await db.query(
+    `insert into lot_logos (address, bytes, content_type, hash, updated_at)
+          values ($1, $2, $3, $4, now())
+     on conflict (address) do update
+            set bytes = excluded.bytes,
+                content_type = excluded.content_type,
+                hash = excluded.hash,
+                updated_at = now()`,
+    [address, bytes, contentType, hash],
+  );
+  return { ok: true, value: hash };
+}
+
+export async function getLogo(address: string): Promise<StoredLogo | null> {
+  const db = await getDb();
+  const row = await db.one<{ bytes: Uint8Array; content_type: string; hash: string }>(
+    'select bytes, content_type, hash from lot_logos where address = $1',
+    [address],
+  );
+  if (!row) return null;
+  return {
+    // node-postgres hands back a Buffer, PGlite a Uint8Array.
+    bytes: Buffer.from(row.bytes),
+    contentType: row.content_type,
+    hash: row.hash,
+  };
+}
+
+/** Just the hash, for deciding whether to render a logo without loading it. */
+export async function logoHash(address: string): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.one<{ hash: string }>('select hash from lot_logos where address = $1', [
+    address,
+  ]);
+  return row?.hash ?? null;
+}
+
+export async function deleteLogo(address: string, userId: string): Promise<StoreResult<null>> {
+  const db = await getDb();
+  const rows = await db.query(
+    `delete from lot_logos
+      where address = $1
+        and exists (select 1 from lots where address = $1 and owner_id = $2)
+      returning address`,
+    [address, userId],
+  );
+  return rows.length > 0 ? { ok: true, value: null } : { ok: false, error: 'You do not own that lot.' };
 }
 
 export async function lotsOwnedBy(userId: string): Promise<LotOverride[]> {

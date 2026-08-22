@@ -17,6 +17,7 @@ import Link from 'next/link';
 import BuildingPortrait from '@/components/BuildingPortrait';
 import type { OwnedLot } from '@/lib/inventory';
 import { DISTRICTS, streetByName } from '@/lib/lots';
+import { priceLabel } from '@/lib/pricing';
 
 const TIER_LABEL: Record<string, string> = {
   corner: 'Corner plot',
@@ -61,11 +62,18 @@ export default function LotPreview({
         <p className="mw-card-state" data-state={state.toLowerCase().replace(' ', '-')}>
           {state} · {TIER_LABEL[lot.tier] ?? lot.tier}
         </p>
+
+        {/* The price belongs here, while somebody is choosing between lots. */}
+        {!lot.claimed && (
+          <p className="mw-price">
+            {priceLabel(lot)} <small>once, yours to keep</small>
+          </p>
+        )}
       </div>
 
       <div className="mw-card-actions">
         <Link className="mw-chip mw-chip-primary mw-chip-small" href={`/lots/${encodeURIComponent(lot.address)}`}>
-          {lot.claimed ? 'See the shop' : 'Take this lot'}
+          {lot.claimed ? 'See the shop' : `Take it · ${priceLabel(lot)}`}
         </Link>
         {street && (
           <Link

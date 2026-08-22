@@ -15,6 +15,7 @@ import ClaimButton from '@/components/ClaimButton';
 import StoreProfileForm from '@/components/StoreProfileForm';
 import { saveAction, saveProfileAction } from '@/app/actions';
 import { SOCIAL_PLATFORMS, displayUrl, socialUrl } from '@/lib/store-profile';
+import { priceLabel } from '@/lib/pricing';
 import { buildInventory } from '@/lib/inventory';
 import {
   FREE_LOTS_PER_ACCOUNT,
@@ -97,6 +98,14 @@ export default async function LotPage({ params }: { params: Promise<{ address: s
             <dd>{TIER_LABEL[lot.tier] ?? lot.tier}</dd>
             <dt>Building</dt>
             <dd>{TYPE_LABEL[lot.buildingType] ?? lot.buildingType}</dd>
+            {!lot.claimed && (
+              <>
+                <dt>Price</dt>
+                <dd>
+                  <strong>{priceLabel(lot)}</strong> once, yours to keep
+                </dd>
+              </>
+            )}
           </dl>
 
           {profile?.bio && <p className="mw-storefront-bio">{profile.bio}</p>}

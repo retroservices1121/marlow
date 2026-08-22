@@ -28,7 +28,13 @@ import LotPreview from './LotPreview';
  * owner's colour. That contrast is the whole point of the map.
  */
 const UNSOLD = '#EDE8DA';
-const UNSOLD_HEIGHT = 58;
+/*
+ * Tall enough to aim at. At 58 an empty plot was a much smaller target than a
+ * taken one, which is backwards — the lots for sale are the ones a visitor most
+ * needs to be able to click. Still well below a real building, so the contrast
+ * that shows how full the city is survives.
+ */
+const UNSOLD_HEIGHT = 112;
 
 type Hover = { lot: OwnedLot; screenX: number; screenY: number } | null;
 

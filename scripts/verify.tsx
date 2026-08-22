@@ -12,6 +12,7 @@ import {
   type Lot,
 } from '@/lib/lots';
 import { TIMES_OF_DAY, FACADE_PALETTE, type TimeOfDay } from '@/lib/palette';
+import { priceFor, priceRange } from '@/lib/pricing';
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = '') {
@@ -259,6 +260,41 @@ check(
   `${corners.length} corners`,
 );
 check('21. tiers are corner/main/side only', new Set(lots.map((l) => l.tier)).size === 3);
+
+/* Pricing: visible, ordered, and never a fraction of a penny. */
+check(
+  '21a. every lot has a price',
+  lots.every((l) => Number.isInteger(priceFor(l)) && priceFor(l) > 0),
+);
+check(
+  '21b. a corner costs more than a main, which costs more than a side',
+  DISTRICTS.every((d) => {
+    const of = (tier: string) => priceFor({ tier: tier as never, district: d.slug });
+    return of('corner') > of('main') && of('main') > of('side');
+  }),
+);
+check(
+  '21c. the same position costs more in a better district',
+  (() => {
+    const at = (district: string) => priceFor({ tier: 'main', district });
+    const downtown = DISTRICTS.find((d) => d.standing === 'downtown');
+    const central = DISTRICTS.find((d) => d.standing === 'central');
+    const outer = DISTRICTS.find((d) => d.standing === 'outer');
+    if (!downtown || !central || !outer) return false;
+    return at(downtown.slug) > at(central.slug) && at(central.slug) > at(outer.slug);
+  })(),
+);
+check(
+  '21d. prices are whole cents, never floats',
+  priceRange().every((row) => Number.isInteger(row.cents)),
+);
+check(
+  '21e. the cheapest lot is a side street in an outer district',
+  (() => {
+    const cheapest = priceRange()[0];
+    return cheapest.standing === 'outer' && cheapest.tier === 'side';
+  })(),
+);
 
 /* Each street is its own scene now, so the checks below run over all four. */
 const scenes = STREETS.map((street) => ({

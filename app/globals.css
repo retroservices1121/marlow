@@ -1027,3 +1027,35 @@ body {
     width: auto;
   }
 }
+
+.mw-map-zoom {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mw-map-zoom button {
+  width: 44px;
+  height: 44px;
+  font: inherit;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+  background: var(--mw-panel);
+  color: var(--mw-ink);
+  cursor: pointer;
+}
+
+.mw-map-zoom button:hover {
+  background: #ffe9b8;
+}
+
+.mw-map-zoom button:focus-visible {
+  outline: 3px solid #4a90c4;
+  outline-offset: 2px;
+}

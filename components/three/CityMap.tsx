@@ -109,6 +109,49 @@ function Buildings({
   );
 }
 
+/**
+ * Lot lines.
+ *
+ * The parcel is the thing being sold, so once you are close enough to consider
+ * one you should be able to see where it begins and ends. Every footprint is
+ * one geometry of line segments — a thousand outlines in a single draw call —
+ * hidden while zoomed out, where they would collapse into noise.
+ */
+function ParcelLines({ planned, zoom }: { planned: PlannedLot[]; zoom: React.RefObject<number> }) {
+  const lines = useRef<THREE.LineSegments>(null);
+
+  const geometry = useMemo(() => {
+    const points: number[] = [];
+    for (const item of planned) {
+      const { x, y, w, d } = item;
+      const corners: [number, number][] = [
+        [x, y],
+        [x + w, y],
+        [x + w, y + d],
+        [x, y + d],
+      ];
+      for (let i = 0; i < 4; i++) {
+        const [ax, az] = corners[i];
+        const [bx, bz] = corners[(i + 1) % 4];
+        points.push(ax, 1, az, bx, 1, bz);
+      }
+    }
+    const buffer = new THREE.BufferGeometry();
+    buffer.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    return buffer;
+  }, [planned]);
+
+  useFrame(() => {
+    if (lines.current) lines.current.visible = (zoom.current ?? 1) > 2.6;
+  });
+
+  return (
+    <lineSegments ref={lines} geometry={geometry} visible={false}>
+      <lineBasicMaterial color="#1A1A1A" />
+    </lineSegments>
+  );
+}
+
 function Ground({
   plan,
   timeOfDay,
@@ -143,13 +186,38 @@ function Ground({
   );
 }
 
-/** Isometric camera with wheel zoom and drag to pan. */
-function MapControls({ plan }: { plan: ReturnType<typeof planCity> }) {
+export const MIN_ZOOM = 0.85;
+export const MAX_ZOOM = 26;
+
+/**
+ * Moving about the city.
+ *
+ * Wheel and drag are the desktop half. The touch half matters more than it
+ * sounds: at the zoom that fits the whole city onto a 390 pixel phone, a
+ * building is under two pixels across, so without a way to zoom in, tapping one
+ * is pure luck. Pinch, double tap and the on-screen buttons all exist for that
+ * reason rather than for polish.
+ */
+function MapControls({
+  plan,
+  zoom,
+}: {
+  plan: ReturnType<typeof planCity>;
+  zoom: React.RefObject<number>;
+}) {
   const { camera, gl, size } = useThree();
-  const target = useRef(new THREE.Vector3(plan.width / 2, 0, plan.depth / 2));
-  /** Multiplier on the zoom that just fits the city; 1 shows the whole thing. */
-  const zoom = useRef(1);
+  /*
+   * Opens on Downtown rather than the middle of the plan. The geometric centre
+   * of five districts is the gap between them, so zooming in from there walks
+   * you into empty ground.
+   */
+  const home = plan.districts[0] ?? { x: 0, y: 0, w: plan.width, d: plan.depth };
+  const target = useRef(new THREE.Vector3(home.x + home.w / 2, 0, home.y + home.d / 2));
   const drag = useRef<{ x: number; y: number } | null>(null);
+  /** Every finger currently down, so a second one can start a pinch. */
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ distance: number; zoom: number } | null>(null);
+  const lastTap = useRef<{ at: number; x: number; y: number } | null>(null);
 
   /*
    * An orthographic camera in react-three-fiber takes its frustum from the
@@ -187,14 +255,82 @@ function MapControls({ plan }: { plan: ReturnType<typeof planCity> }) {
     ortho.updateProjectionMatrix();
 
     const canvas = gl.domElement;
+    /**
+     * Screen offset from the centre of the canvas, in plan units.
+     *
+     * The same mapping panning uses, so both agree about which way is which on
+     * an isometric grid.
+     */
+    const planOffset = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      const sx = clientX - rect.left - rect.width / 2;
+      const sy = clientY - rect.top - rect.height / 2;
+      const perPixel = 1 / (fit * zoom.current);
+      return {
+        x: (sx + sy) * 0.7 * perPixel,
+        z: (sy - sx) * 0.7 * perPixel,
+      };
+    };
+
+    /** Zoom about a point, so whatever is under the cursor stays there. */
+    const zoomAbout = (factor: number, clientX: number, clientY: number) => {
+      const before = zoom.current;
+      const after = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, before * factor));
+      if (after === before) return;
+      const offset = planOffset(clientX, clientY);
+      const shift = 1 - before / after;
+      target.current.x += offset.x * shift;
+      target.current.z += offset.z * shift;
+      zoom.current = after;
+    };
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      zoom.current = Math.min(26, Math.max(0.85, zoom.current * (e.deltaY > 0 ? 0.88 : 1.14)));
+      zoomAbout(e.deltaY > 0 ? 0.88 : 1.14, e.clientX, e.clientY);
     };
+    const spread = () => {
+      const [a, b] = [...touches.current.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
     const onDown = (e: PointerEvent) => {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.current.size === 2) {
+        pinch.current = { distance: spread(), zoom: zoom.current };
+        drag.current = null;
+        return;
+      }
       drag.current = { x: e.clientX, y: e.clientY };
+
+      // Double tap zooms in, which is how anybody expects to get closer.
+      const now = e.timeStamp;
+      const previous = lastTap.current;
+      if (
+        previous &&
+        now - previous.at < 320 &&
+        Math.hypot(e.clientX - previous.x, e.clientY - previous.y) < 32
+      ) {
+        zoomAbout(2.1, e.clientX, e.clientY);
+        lastTap.current = null;
+      } else {
+        lastTap.current = { at: now, x: e.clientX, y: e.clientY };
+      }
     };
+
     const onMove = (e: PointerEvent) => {
+      if (touches.current.has(e.pointerId)) {
+        touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+
+      if (pinch.current && touches.current.size === 2) {
+        const [a, b] = [...touches.current.values()];
+        const ratio = spread() / pinch.current.distance;
+        const wanted = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinch.current.zoom * ratio));
+        // Pinch about the midpoint between the fingers, as a map should.
+        zoomAbout(wanted / zoom.current, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        return;
+      }
+
       const from = drag.current;
       if (!from) return;
       // Screen drag to plan movement, along the two isometric axes.
@@ -205,7 +341,10 @@ function MapControls({ plan }: { plan: ReturnType<typeof planCity> }) {
       target.current.z -= (dy - dx) * 0.7;
       drag.current = { x: e.clientX, y: e.clientY };
     };
-    const onUp = () => {
+
+    const onUp = (e: PointerEvent) => {
+      touches.current.delete(e.pointerId);
+      if (touches.current.size < 2) pinch.current = null;
       drag.current = null;
     };
 
@@ -213,13 +352,15 @@ function MapControls({ plan }: { plan: ReturnType<typeof planCity> }) {
     canvas.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
     return () => {
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('pointerdown', onDown);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     };
-  }, [camera, gl, plan, fit]);
+  }, [camera, gl, plan, fit, zoom]);
 
   useFrame(() => {
     const ortho = camera as THREE.OrthographicCamera;
@@ -250,6 +391,11 @@ export default function CityMap({
   const plan = useMemo(() => planCity(lots), [lots]);
   const palette = TIME_PALETTES[timeOfDay];
   const [hover, setHover] = useState<Hover>(null);
+  /** Multiplier on the zoom that just fits the city; 1 shows the whole thing. */
+  const zoom = useRef(1);
+  const nudgeZoom = useCallback((factor: number) => {
+    zoom.current = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom.current * factor));
+  }, []);
 
   const [selected, setSelected] = useState<OwnedLot | null>(null);
   /*
@@ -283,14 +429,29 @@ export default function CityMap({
           shadow-camera-bottom={-reach}
         />
         <Ground plan={plan} timeOfDay={timeOfDay} />
+        <ParcelLines planned={plan.lots} zoom={zoom} />
         <Buildings
           planned={plan.lots}
           timeOfDay={timeOfDay}
           onHover={setHover}
           onSelect={select}
         />
-        <MapControls plan={plan} />
+        <MapControls plan={plan} zoom={zoom} />
       </Canvas>
+
+      {/*
+        * Explicit zoom, because a first-time visitor on a phone has no reason to
+        * guess that pinching works, and at the whole-city zoom the buildings are
+        * too small to tap.
+        */}
+      <div className="mw-map-zoom">
+        <button type="button" onClick={() => nudgeZoom(1.7)} aria-label="Zoom in">
+          +
+        </button>
+        <button type="button" onClick={() => nudgeZoom(1 / 1.7)} aria-label="Zoom out">
+          −
+        </button>
+      </div>
 
       {selected && <LotPreview lot={selected} onClose={() => setSelected(null)} />}
 

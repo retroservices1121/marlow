@@ -2,7 +2,13 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import Street from '@/components/Street';
 import Building from '@/components/Building';
-import { generateLots, type Lot } from '@/lib/lots';
+import {
+  STREETS,
+  cornerIndices,
+  generateLots,
+  junctionsOn,
+  type Lot,
+} from '@/lib/lots';
 import { TIMES_OF_DAY, FACADE_PALETTE, type TimeOfDay } from '@/lib/palette';
 
 let failures = 0;
@@ -13,8 +19,14 @@ function check(name: string, ok: boolean, detail = '') {
 
 const lots = generateLots();
 
-const renderStreet = (l: Lot[], t: TimeOfDay) =>
-  renderToStaticMarkup(<Street lots={l} timeOfDay={t} />);
+const renderStreet = (l: Lot[], t: TimeOfDay, linked = false) =>
+  renderToStaticMarkup(
+    <Street
+      lots={l}
+      timeOfDay={t}
+      hrefForStreet={linked ? (street) => `/street/${street.slug}` : undefined}
+    />,
+  );
 
 const renderBuilding = (lot: Lot, t: TimeOfDay, x = 0) =>
   renderToStaticMarkup(
@@ -216,25 +228,36 @@ check(
   lots.every((l) => l.number % 2 === 0) && mainLots[0].number === 100 && mainLots[1].number === 102,
 );
 check(
-  '20. every block has a corner at each end',
-  (() => {
-    if (corners.length !== 8) return false;
-    for (const streetName of new Set(lots.map((l) => l.street))) {
-      const run = lots.filter((l) => l.street === streetName);
-      if (run[0].tier !== 'corner' || run[run.length - 1].tier !== 'corner') return false;
-      if (run.slice(1, -1).some((l) => l.tier === 'corner')) return false;
-    }
-    return true;
-  })(),
+  '20. corner lots are exactly the ones beside an intersection',
+  STREETS.every((street) => {
+    const run = lots.filter((l) => l.street === street.name);
+    const expected = cornerIndices(street);
+    return run.every((lot, i) => (lot.tier === 'corner') === expected.has(i));
+  }),
   `${corners.length} corners`,
 );
 check('21. tiers are corner/main/side only', new Set(lots.map((l) => l.tier)).size === 3);
 
-/* Shared walls: no gaps, no overlaps. */
-const svg = renderStreet(lots, 'day');
-check('22. exactly one root <svg>', (svg.match(/<svg/g) || []).length === 1);
-check('23. no filters/gradients/opacity in output', !/<filter|<linearGradient|<radialGradient|opacity=/.test(svg));
-check('24. the street loads no images at all', !/<image/.test(svg) && !/url\(http/.test(svg));
+/* Each street is its own scene now, so the checks below run over all four. */
+const scenes = STREETS.map((street) => ({
+  street,
+  lots: lots.filter((l) => l.street === street.name),
+  // Rendered as the app renders it, with turnings that actually lead somewhere.
+  svg: renderStreet(lots.filter((l) => l.street === street.name), 'day', true),
+}));
+const svg = scenes[0].svg;
+check(
+  '22. each street is one root <svg>',
+  scenes.every((scene) => (scene.svg.match(/<svg/g) || []).length === 1),
+);
+check(
+  '23. no filters/gradients/opacity in output',
+  scenes.every((scene) => !/<filter|<linearGradient|<radialGradient|opacity=/.test(scene.svg)),
+);
+check(
+  '24. the street loads no images at all',
+  scenes.every((scene) => !/<image/.test(scene.svg) && !/url\(http/.test(scene.svg)),
+);
 
 /*
  * One deliberate exception to "no image files": the building someone was linked
@@ -261,7 +284,10 @@ check(
   !/<image/.test(renderStreet(lots, 'day')),
 );
 check('25. uniform stroke width', new Set((svg.match(/stroke-width="[^"]*"/g) || [])).size === 2, [...new Set(svg.match(/stroke-width="[^"]*"/g) || [])].join(' '));
-check('26. buildings are focusable', (svg.match(/tabindex="0"/g) || []).length === 120);
+check(
+  '26. every building is focusable',
+  scenes.reduce((n, scene) => n + (scene.svg.match(/tabindex="0"/g) || []).length, 0) === 120,
+);
 check('27. night lights windows', renderStreet(lots, 'night').includes('#FFD98A'));
 check('28. day lights none', !renderStreet(lots, 'day').includes('#FFD98A'));
 
@@ -270,29 +296,55 @@ const duskLit = (dusk.match(/#FFD98A/g) || []).length;
 const nightLit = (renderStreet(lots, 'night').match(/#FFD98A/g) || []).length;
 check('29. dusk lights roughly half of night', duskLit > 0 && duskLit < nightLit, `dusk ${duskLit} / night ${nightLit}`);
 
-/* Cumulative layout: walls touch inside a block, blocks are separated by a street. */
+/*
+ * Layout: within a street, walls touch. The pavement is interrupted only where
+ * another street meets this one — three junctions along Main Street, and one at
+ * the head of each side street leading back to it.
+ */
 const INTERSECTION = 210;
-let cursor = 48;
-let previousStreet: string | null = null;
-let contiguous = true;
-let gaps = 0;
-for (const lot of lots) {
-  if (previousStreet !== null && lot.street !== previousStreet) {
-    cursor += INTERSECTION;
-    gaps += 1;
-  }
-  previousStreet = lot.street;
-  const g = deriveGeometry(lot.address, lot.buildingType);
-  contiguous &&= svg.includes(`translate(${cursor} 560)`);
-  cursor += g.width;
+let allContiguous = true;
+let totalUnits = 0;
+for (const scene of scenes) {
+  const junctions = new Set(junctionsOn(scene.street).map((j) => j.afterIndex));
+  const opensWithGap = !scene.street.main;
+  let cursor = 48 + (opensWithGap ? INTERSECTION : 0);
+  scene.lots.forEach((lot, i) => {
+    allContiguous &&= scene.svg.includes(`translate(${cursor} 560)`);
+    cursor += deriveGeometry(lot.address, lot.buildingType).width;
+    if (junctions.has(i)) cursor += INTERSECTION;
+  });
+  totalUnits += cursor + 48;
 }
-check('30. buildings share walls within a block', contiguous);
-check('31. blocks are separated by an intersection', gaps === 3, `${gaps} gaps`);
+check('30. buildings share walls within a street', allContiguous);
+
 check(
-  '32. every street is named on the scene',
-  [...new Set(lots.map((l) => l.street))].every((name) => svg.includes(name.toUpperCase())),
+  '31. Main Street has a turning into every side street',
+  (() => {
+    const main = scenes.find((scene) => scene.street.main);
+    if (!main) return false;
+    return STREETS.filter((street) => !street.main).every((street) =>
+      main.svg.includes(`data-turning="${street.slug}"`),
+    );
+  })(),
 );
-console.log(`street width: ${cursor + 48} units`);
+
+check(
+  '32. every side street has a way back to Main Street',
+  scenes
+    .filter((scene) => !scene.street.main)
+    .every((scene) => scene.svg.includes('data-turning="main-street"')),
+);
+
+check(
+  '33. every street names itself',
+  scenes.every((scene) => scene.svg.includes(scene.street.name.toUpperCase())),
+);
+
+check(
+  '34. a side street is a fraction of the old single row',
+  scenes.filter((s) => !s.street.main).every((s) => s.lots.length === 24),
+);
+console.log(`all four streets: ${totalUnits} units`);
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

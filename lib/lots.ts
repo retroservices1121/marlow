@@ -32,10 +32,25 @@ export type Lot = {
 
 export type StreetDef = {
   name: string;
+  /** URL-safe name: `willow-lane`. */
+  slug: string;
   /** How many lots this street holds. */
   count: number;
-  /** Lots on a cross street are `side`; Main Street ends are `corner`. */
+  /** Main Street is the spine; the rest hang off it. */
   main: boolean;
+  /**
+   * For a side street, the index on Main Street it opens beside. Walking past
+   * that point on Main Street, you can turn into this one.
+   */
+  joinsAfter?: number;
+  /**
+   * Which way the street runs when the town is seen from above.
+   *
+   * Nothing draws a plan view yet — the street views are side elevations, where
+   * this is unused. It is recorded now because a map has to know the town's
+   * shape, and inferring it later from an ordering would be guesswork.
+   */
+  direction: 'east' | 'south';
 };
 
 /**
@@ -43,11 +58,53 @@ export type StreetDef = {
  * Each is drawn as its own block, separated by an intersection.
  */
 export const STREETS: readonly StreetDef[] = [
-  { name: 'Main Street', count: 48, main: true },
-  { name: 'Willow Lane', count: 24, main: false },
-  { name: 'Harbor Road', count: 24, main: false },
-  { name: 'Kiln Street', count: 24, main: false },
+  { name: 'Main Street', slug: 'main-street', count: 48, main: true, direction: 'east' },
+  { name: 'Willow Lane', slug: 'willow-lane', count: 24, main: false, joinsAfter: 11, direction: 'south' },
+  { name: 'Harbor Road', slug: 'harbor-road', count: 24, main: false, joinsAfter: 23, direction: 'south' },
+  { name: 'Kiln Street', slug: 'kiln-street', count: 24, main: false, joinsAfter: 35, direction: 'south' },
 ];
+
+export function streetBySlug(slug: string): StreetDef | undefined {
+  return STREETS.find((street) => street.slug === slug);
+}
+
+export function streetByName(name: string): StreetDef | undefined {
+  return STREETS.find((street) => street.name === name);
+}
+
+/** Side streets opening off `street`, in the order you meet them walking it. */
+export function junctionsOn(
+  street: StreetDef,
+  streets: readonly StreetDef[] = STREETS,
+): { afterIndex: number; street: StreetDef }[] {
+  if (!street.main) return [];
+  return streets
+    .filter((other) => other.joinsAfter !== undefined)
+    .map((other) => ({ afterIndex: other.joinsAfter as number, street: other }))
+    .sort((a, b) => a.afterIndex - b.afterIndex);
+}
+
+/** The street a side street returns to. */
+export function parentStreet(street: StreetDef, streets: readonly StreetDef[] = STREETS) {
+  return street.main ? undefined : streets.find((s) => s.main);
+}
+
+/**
+ * Indices on a street that sit beside an intersection — a street end, or a
+ * junction where a side street opens. These are the lots a visitor sees on a
+ * corner, which is what makes the corner tier worth paying for.
+ */
+export function cornerIndices(street: StreetDef, streets: readonly StreetDef[] = STREETS): Set<number> {
+  const corners = new Set<number>([0, street.count - 1]);
+  if (street.main) {
+    for (const other of streets) {
+      if (other.joinsAfter === undefined) continue;
+      corners.add(other.joinsAfter);
+      corners.add(other.joinsAfter + 1);
+    }
+  }
+  return corners;
+}
 
 export const TOTAL_LOTS = STREETS.reduce((sum, s) => sum + s.count, 0);
 
@@ -104,8 +161,14 @@ function seedSignText(address: string, type: BuildingType): string {
 
 function seedBuildingType(address: string, tier: Tier): BuildingType {
   const rng = subRandom(address, 'buildingType');
-  if (tier === 'corner') return 'civic';
   const roll = rng.next();
+  // Corners lean grand, but a street of nothing but town halls is not a town.
+  if (tier === 'corner') {
+    if (roll < 0.34) return 'civic';
+    if (roll < 0.6) return 'tower';
+    if (roll < 0.72) return 'warehouse';
+    return 'storefront';
+  }
   if (tier === 'main') {
     if (roll < 0.72) return 'storefront';
     if (roll < 0.88) return 'tower';
@@ -142,15 +205,14 @@ export function generateLots(streets: readonly StreetDef[] = STREETS): Lot[] {
   const lots: Lot[] = [];
 
   for (const street of streets) {
+    const corners = cornerIndices(street, streets);
     for (let i = 0; i < street.count; i++) {
       const number = FIRST_NUMBER + i * NUMBER_STEP;
       const address = `${number} ${street.name}`;
-      // Every block has two ends, and once intersections are drawn all eight of
-      // them read as corners. Pricing a lot above its neighbours only works if a
-      // visitor can see why, so the tier follows the drawing rather than the
-      // other way round.
-      const isEnd = i === 0 || i === street.count - 1;
-      const tier: Tier = isEnd ? 'corner' : street.main ? 'main' : 'side';
+      // The tier follows the drawing, not the other way round: a lot is a
+      // corner when a visitor can see it on one. That means street ends and,
+      // on Main Street, the lots either side of every junction.
+      const tier: Tier = corners.has(i) ? 'corner' : street.main ? 'main' : 'side';
       const buildingType = seedBuildingType(address, tier);
       const { facadeColor, accentColor } = seedColors(address);
 

@@ -7,12 +7,14 @@
  */
 
 import type { ReactNode } from 'react';
+import { seededRandom } from '@/lib/hash';
 import {
   CORNER_RADIUS,
   HOARDING,
   LIT_WINDOW,
   STROKE_WIDTH,
   inkOn,
+  mixHex,
   shade,
   tint,
 } from '@/lib/palette';
@@ -672,25 +674,72 @@ export type CrossingProps = {
   curbY: number;
   road: string;
   stroke: string;
+  /** Sky, which the far end of the street fades toward. */
+  sky: string;
+  /** Stable seed so the distant rooftops never shuffle between renders. */
+  seed: string;
 };
 
 /**
  * The side street running away between two blocks.
  *
  * A flat elevation cannot show depth with perspective, so the receding road is
- * a plain tapered polygon — flat-filled like everything else. It is enough to
- * read the gap as a street rather than a missing building.
+ * a plain tapered polygon and the buildings along it are small silhouettes
+ * washed toward the sky — flat fills throughout, no gradients. Without them the
+ * opening reads as a missing building rather than somewhere you can go.
  */
-export function Crossing({ x, width, baseline, curbY, road, stroke }: CrossingProps) {
-  const depth = 76;
+export function Crossing({ x, width, baseline, curbY, road, stroke, sky, seed }: CrossingProps) {
+  const depth = 88;
   const taper = Math.min(38, width * 0.28);
+  const horizon = baseline - depth;
+  const rng = seededRandom(`${seed}#crossing`);
+
+  /*
+   * The far end of the street: one low terrace across the back of the opening,
+   * washed toward the sky so it sits behind everything. Earlier this was three
+   * rows of buildings at different depths, which in a gap this narrow read as a
+   * cluster of towers floating in a slot rather than a street going away.
+   */
+  const backFill = mixHex('#6E7A85', sky, 0.5);
+  const terraceHeight = 46;
+  const terraceTop = horizon - terraceHeight;
+  const terraceFrom = taper * 0.5;
+  const terraceWidth = width - taper;
+
+  const roofs: ReactNode[] = [];
+  const roofCount = 3;
+  for (let i = 0; i < roofCount; i++) {
+    const segment = terraceWidth / roofCount;
+    const left = terraceFrom + segment * i;
+    const peak = 10 + rng.range(0, 9);
+    roofs.push(
+      <polygon
+        key={i}
+        points={`${left},${terraceTop} ${left + segment / 2},${terraceTop - peak} ${left + segment},${terraceTop}`}
+        fill={shade(backFill, 0.14)}
+        stroke={stroke}
+        {...INK}
+      />,
+    );
+  }
+
   return (
     <g transform={`translate(${x} 0)`}>
       {/* Ground plane of the crossing, where the pavement would otherwise run */}
       <rect x={0} y={baseline} width={width} height={curbY - baseline} fill={road} />
+      {roofs}
+      <rect
+        x={terraceFrom}
+        y={terraceTop}
+        width={terraceWidth}
+        height={terraceHeight}
+        fill={backFill}
+        stroke={stroke}
+        {...INK}
+      />
       {/* The street receding out of view */}
       <polygon
-        points={`0,${baseline} ${width},${baseline} ${width - taper},${baseline - depth} ${taper},${baseline - depth}`}
+        points={`0,${baseline} ${width},${baseline} ${width - taper},${horizon} ${taper},${horizon}`}
         fill={shade(road, 0.16)}
         stroke={stroke}
         {...INK}

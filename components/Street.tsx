@@ -1,13 +1,19 @@
 /**
- * The street scene.
+ * One street, drawn as a side elevation.
  *
- * Owns the single root `<svg>` for the whole town: 120 buildings, one element
- * tree, no per-building `<svg>`, no filters, and exactly one animated group
- * (the clouds). Buildings share walls — each starts where the previous ended.
+ * The town used to be a single row of all 120 buildings, which made the side
+ * streets a fiction: they were more blocks in the same line, and the openings
+ * between them led nowhere. A street is now a place. Main Street has junctions
+ * along it you can turn into; each side street runs from its junction to a
+ * dead end.
+ *
+ * Owns the single root `<svg>` for the street. Buildings share walls — each one
+ * starts where the previous ended, no gaps — and the pavement is interrupted
+ * only where another street meets this one.
  */
 
 import { subRandom } from '@/lib/hash';
-import type { Lot } from '@/lib/lots';
+import { junctionsOn, parentStreet, streetByName, type Lot, type StreetDef } from '@/lib/lots';
 import {
   LAMP_GLOW,
   TIME_PALETTES,
@@ -51,6 +57,15 @@ const FURNITURE_BASELINE = BASELINE + 30;
 const CLOUD_SPACING = 900;
 const STAR_FIELD_WIDTH = 1600;
 
+export type Opening = {
+  /** Lot index this opening follows. -1 puts it before the first building. */
+  afterIndex: number;
+  /** The street it leads to. */
+  to: StreetDef;
+  /** Label on the sign standing in the gap. */
+  label: string;
+};
+
 export type StreetProps = {
   lots: Lot[];
   timeOfDay: TimeOfDay;
@@ -62,6 +77,8 @@ export type StreetProps = {
   highlightAddress?: string | null;
   /** Logo for that one building, if its store has one. */
   highlightLogoUrl?: string | null;
+  /** Where a turning leads. Without this the openings are decoration. */
+  hrefForStreet?: (street: StreetDef) => string;
 };
 
 type Placement = {
@@ -86,31 +103,58 @@ type FurniturePlacement = {
   x: number;
 };
 
+type PlacedOpening = Opening & {
+  from: number;
+  until: number;
+  /** Block this gap follows. -1 when the street opens with it. */
+  afterBlock: number;
+};
+
 /**
- * Cumulative x positions. Walls are shared inside a block; blocks are separated
- * by an intersection.
+ * Cumulative x positions. Walls are shared along the street; the pavement is
+ * interrupted only where another street meets this one.
  */
-function layout(lots: Lot[]): {
+function layout(
+  lots: Lot[],
+  openings: Opening[],
+): {
   placements: Placement[];
   blocks: Block[];
+  gaps: PlacedOpening[];
   totalWidth: number;
   skyline: number;
 } {
+  const streetName = lots[0]?.street ?? '';
   let cursor = STREET_MARGIN;
   let skyline = 0;
   const placements: Placement[] = [];
   const blocks: Block[] = [];
+  const gaps: PlacedOpening[] = [];
   let current: Block | null = null;
 
-  for (const lot of lots) {
-    if (current && lot.street !== current.street) {
-      current.width = cursor - current.x;
-      blocks.push(current);
+  const openBefore = new Map(openings.map((o) => [o.afterIndex + 1, o]));
+
+  // A plain loop rather than forEach: TypeScript cannot follow a mutable
+  // variable reassigned inside a closure, and narrows `current` to never.
+  for (let index = 0; index < lots.length; index++) {
+    const lot = lots[index];
+    const opening = openBefore.get(index);
+    if (opening) {
+      if (current) {
+        current.width = cursor - current.x;
+        blocks.push(current);
+        current = null;
+      }
+      gaps.push({
+        ...opening,
+        from: cursor,
+        until: cursor + INTERSECTION_WIDTH,
+        afterBlock: blocks.length - 1,
+      });
       cursor += INTERSECTION_WIDTH;
-      current = null;
     }
     if (!current) {
-      current = { street: lot.street, x: cursor, width: 0, pavementFrom: 0, pavementTo: 0 };
+      current = { street: streetName, x: cursor, width: 0, pavementFrom: 0, pavementTo: 0 };
     }
 
     const geo = deriveGeometry(lot.address, lot.buildingType);
@@ -125,12 +169,28 @@ function layout(lots: Lot[]): {
   }
 
   const totalWidth = cursor + STREET_MARGIN;
+
+  /*
+   * A side street opens with its junction back to Main Street, so a gap can sit
+   * before the first building as well as between two. Pavement runs to the edge
+   * of the scene only where no gap interrupts it.
+   */
+  const opensWithGap = gaps.some((gap) => gap.afterBlock === -1);
+  const endsWithGap = gaps.some((gap) => gap.afterBlock === blocks.length - 1);
+
   blocks.forEach((block, i) => {
-    block.pavementFrom = i === 0 ? 0 : block.x - PAVEMENT_RETURN;
-    block.pavementTo = i === blocks.length - 1 ? totalWidth : block.x + block.width + PAVEMENT_RETURN;
+    block.pavementFrom = i === 0 && !opensWithGap ? 0 : block.x - PAVEMENT_RETURN;
+    block.pavementTo =
+      i === blocks.length - 1 && !endsWithGap ? totalWidth : block.x + block.width + PAVEMENT_RETURN;
   });
 
-  return { placements, blocks, totalWidth, skyline };
+  // A gap's clear road runs between whatever pavement bounds it.
+  gaps.forEach((gap) => {
+    gap.from = gap.afterBlock >= 0 ? blocks[gap.afterBlock].pavementTo : 0;
+    gap.until = blocks[gap.afterBlock + 1]?.pavementFrom ?? totalWidth;
+  });
+
+  return { placements, blocks, gaps, totalWidth, skyline };
 }
 
 /**
@@ -171,10 +231,28 @@ export default function Street({
   hrefForLot,
   highlightAddress,
   highlightLogoUrl,
+  hrefForStreet,
 }: StreetProps) {
   const palette = TIME_PALETTES[timeOfDay];
   const stroke = palette.stroke;
-  const { placements, blocks, totalWidth } = layout(lots);
+
+  // Turnings come from the street's own definition, so a street knows what it
+  // connects to without the caller having to describe the town.
+  const street = streetByName(lots[0]?.street ?? '');
+  const parent = street ? parentStreet(street) : undefined;
+  const openings: Opening[] = !street
+    ? []
+    : street.main
+      ? junctionsOn(street).map((j) => ({
+          afterIndex: j.afterIndex,
+          to: j.street,
+          label: j.street.name,
+        }))
+      : parent
+        ? [{ afterIndex: -1, to: parent, label: parent.name }]
+        : [];
+
+  const { placements, blocks, gaps, totalWidth } = layout(lots, openings);
   const furniture = placeFurniture(placements);
   const night = timeOfDay === 'night';
 
@@ -262,22 +340,20 @@ export default function Street({
         />
       ))}
 
-      {/* Side streets running away between the blocks */}
-      {blocks.slice(0, -1).map((block, i) => {
-        const from = block.pavementTo;
-        const to = blocks[i + 1].pavementFrom;
-        return (
-          <Crossing
-            key={`crossing-${block.street}`}
-            x={from}
-            width={to - from}
-            baseline={BASELINE}
-            curbY={CURB_Y}
-            road={palette.road}
-            stroke={stroke}
-          />
-        );
-      })}
+      {/* Turnings: the street each opening leads to */}
+      {gaps.map((gap) => (
+        <Crossing
+          key={`crossing-${gap.to.slug}`}
+          x={gap.from}
+          width={gap.until - gap.from}
+          baseline={BASELINE}
+          curbY={CURB_Y}
+          road={palette.road}
+          stroke={stroke}
+          sky={palette.sky}
+          seed={gap.to.slug}
+        />
+      ))}
 
       {/* Pavement, one run per block, with the kerb returning at each corner */}
       {blocks.map((block) => {
@@ -350,22 +426,57 @@ export default function Street({
         />
       ))}
 
-      {/* A sign on each corner, so a block's identity is visible */}
-      {blocks.map((block) => {
-        // Signs sit on the near corner of their block. The first block starts at
-        // the very edge of the scene, so the plate is nudged in far enough to
-        // stay whole rather than being clipped by the viewBox.
-        const half = streetSignWidth(block.street) / 2;
-        const x = Math.max(block.pavementFrom + 26, half + 10);
-        return (
+      {/* This street's own name, on the first corner of its own pavement —
+          not at the edge of the scene, where a side street's junction sign
+          already stands and the two would sit on top of each other. */}
+      {street && blocks.length > 0 && (
+        <StreetSign
+          x={Math.max(
+            blocks[0].pavementFrom + 26,
+            streetSignWidth(street.name) / 2 + 10,
+          )}
+          baseline={FURNITURE_BASELINE}
+          name={street.name}
+          stroke={stroke}
+          wash={wash}
+        />
+      )}
+
+      {/* Each turning, signed and walkable */}
+      {gaps.map((gap) => {
+        // On the near corner rather than mid-road: that is where a street sign
+        // stands, and it leaves the view down the turning unobstructed.
+        const post = gap.from + Math.max(34, streetSignWidth(gap.label) / 2 + 8);
+        const sign = (
           <StreetSign
-            key={`sign-${block.street}`}
-            x={x}
+            x={post}
             baseline={FURNITURE_BASELINE}
-            name={block.street}
+            name={gap.label}
             stroke={stroke}
             wash={wash}
           />
+        );
+        const href = hrefForStreet?.(gap.to);
+        if (!href) return <g key={`turn-${gap.to.slug}`}>{sign}</g>;
+        return (
+          <a
+            key={`turn-${gap.to.slug}`}
+            className="mw-turning"
+            href={href}
+            aria-label={`Turn into ${gap.label}`}
+            data-turning={gap.to.slug}
+          >
+            {/* An invisible target over the whole opening, so the turning is the
+                gap itself rather than just the signpost. */}
+            <rect
+              x={gap.from}
+              y={BASELINE - 150}
+              width={gap.until - gap.from}
+              height={CURB_Y - BASELINE + 150}
+              fill="transparent"
+            />
+            {sign}
+          </a>
         );
       })}
 

@@ -16,10 +16,10 @@
  * yourself along the street would keep navigating away.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Street from './Street';
 import type { OwnedLot } from '@/lib/inventory';
-import type { Lot } from '@/lib/lots';
+import type { Lot, StreetDef } from '@/lib/lots';
 import { TIMES_OF_DAY, currentTimeOfDay, type TimeOfDay } from '@/lib/palette';
 
 type Mode = 'auto' | TimeOfDay;
@@ -50,12 +50,6 @@ export default function StreetView({
   }, []);
 
   const timeOfDay: TimeOfDay = mode === 'auto' ? clockTime : mode;
-
-  const streets = useMemo(() => {
-    const seen: string[] = [];
-    for (const lot of lots) if (!seen.includes(lot.street)) seen.push(lot.street);
-    return seen;
-  }, [lots]);
 
   /**
    * Centres an element in the scroller, measured from the DOM rather than
@@ -201,20 +195,6 @@ export default function StreetView({
         ))}
       </div>
 
-      <div className="mw-controls" role="group" aria-label="Jump to a street">
-        <p className="mw-legend">Jump to</p>
-        {streets.map((street) => (
-          <button
-            key={street}
-            type="button"
-            className="mw-chip"
-            onClick={() => centre('data-street', street, true)}
-          >
-            {street}
-          </button>
-        ))}
-      </div>
-
       <div className="mw-stage">
         <div
           className="mw-scroll mw-walkable"
@@ -234,6 +214,7 @@ export default function StreetView({
             hrefForLot={(lot: Lot) => `/lots/${encodeURIComponent(lot.address)}`}
             highlightAddress={focusAddress}
             highlightLogoUrl={focusLogoUrl}
+            hrefForStreet={(street: StreetDef) => `/street/${street.slug}`}
           />
         </div>
       </div>

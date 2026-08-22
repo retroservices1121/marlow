@@ -34,7 +34,13 @@ export default function LotPreview({
 }) {
   const district = DISTRICTS.find((d) => d.slug === lot.district);
   const street = streetByName(lot.street);
-  const state = lot.awaitingOwner ? 'Sold' : lot.claimed ? 'Taken' : 'For sale';
+  const state = lot.reserved
+    ? 'Giveaway'
+    : lot.awaitingOwner
+      ? 'Sold'
+      : lot.claimed
+        ? 'Taken'
+        : 'For sale';
 
   return (
     <aside className="mw-preview-panel" aria-label={`${lot.address}, ${state}`}>
@@ -73,7 +79,7 @@ export default function LotPreview({
 
       <div className="mw-card-actions">
         <Link className="mw-chip mw-chip-primary mw-chip-small" href={`/${addressSlug(lot.address)}`}>
-          {lot.claimed ? 'See the shop' : `Take it · ${priceLabel(lot)}`}
+          {lot.reserved ? 'How to win it' : lot.claimed ? 'See the shop' : `Take it · ${priceLabel(lot)}`}
         </Link>
         {street && (
           <Link

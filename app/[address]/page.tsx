@@ -95,7 +95,24 @@ export default async function LotPage({
   const allowanceSpent =
     user !== null && !isMine && (await freeClaimCount(user.id)) >= FREE_LOTS_PER_ACCOUNT;
 
-  const state = isMine ? 'Yours' : lot.awaitingOwner ? 'Sold' : lot.claimed ? 'Taken' : 'For sale';
+  /*
+   * Who to send your email to, once you have registered.
+   *
+   * An env var rather than a constant so the giveaway can be run from whichever
+   * account is running it that week, without a deploy. With none set the copy
+   * still makes sense, it just cannot say where to send it.
+   */
+  const giveawayHandle = process.env.NEXT_PUBLIC_GIVEAWAY_HANDLE;
+
+  const state = isMine
+    ? 'Yours'
+    : lot.reserved
+      ? 'Giveaway'
+      : lot.awaitingOwner
+        ? 'Sold'
+        : lot.claimed
+          ? 'Taken'
+          : 'For sale';
 
   return (
     <main className="mw-page mw-narrow">
@@ -214,6 +231,21 @@ export default async function LotPage({
             logoUrl={logoUrl}
             action={saveProfileAction}
           />
+        </>
+      ) : lot.reserved ? (
+        <>
+          <h2 className="mw-street-heading">This address is being given away</h2>
+          <p className="mw-sub">
+            {lot.address} is not for sale — it is held back as a prize. Create an account, then send
+            the email address you signed up with
+            {giveawayHandle ? ` to ${giveawayHandle} on X` : ' to whoever is running the giveaway'},
+            and the deed is transferred to you. The shop is then yours to name, colour and fill.
+          </p>
+          <p className="mw-sub">
+            <Link className="mw-chip mw-chip-primary" href="/register">
+              Create an account
+            </Link>
+          </p>
         </>
       ) : lot.awaitingOwner ? (
         <p className="mw-sub">

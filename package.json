@@ -14,7 +14,8 @@
     "polar:reconcile": "node scripts/polar-reconcile.js",
     "db:migrate": "node scripts/migrate.js",
     "grant": "node scripts/grant.js",
-    "transfer": "node scripts/transfer.js"
+    "transfer": "node scripts/transfer.js",
+    "reserve": "node scripts/reserve.js"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.8.0",

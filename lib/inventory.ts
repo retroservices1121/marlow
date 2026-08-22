@@ -20,6 +20,19 @@ const BUILDING_TYPES: readonly BuildingType[] = ['storefront', 'tower', 'warehou
 const STATUSES: readonly Status[] = ['sold', 'vacant'];
 
 /** The stored half of a lot: what an owner chose, plus who owns it. */
+/**
+ * How a lot came to be spoken for.
+ *
+ * `giveaway` is the odd one: it is not somebody's lot at all yet, it is one
+ * held back to be handed out. It has to be distinguishable, or the page shows
+ * "Sold" to everyone who follows the link announcing the prize.
+ */
+export type AcquiredVia = 'claim' | 'grant' | 'purchase' | 'giveaway';
+
+function isAcquiredVia(value: unknown): value is AcquiredVia {
+  return value === 'claim' || value === 'grant' || value === 'purchase' || value === 'giveaway';
+}
+
 export type LotOverride = {
   address: string;
   /** Set when a signed-in account owns the lot. */
@@ -31,6 +44,7 @@ export type LotOverride = {
   facadeColor: string | null;
   accentColor: string | null;
   signText: string | null;
+  acquiredVia: AcquiredVia | null;
 };
 
 /** A lot plus the ownership facts the renderer does not care about. */
@@ -38,6 +52,8 @@ export type OwnedLot = Lot & {
   ownerId: string | null;
   /** Bought by somebody — with or without an account behind it yet. */
   claimed: boolean;
+  /** Held back to be given away — not sold, and not available to buy. */
+  reserved: boolean;
   /** Bought, but nobody has signed in with the buyer's email to take it over. */
   awaitingOwner: boolean;
 };
@@ -83,6 +99,7 @@ export function toOverride(row: Record<string, unknown>): LotOverride {
     address: String(row.address),
     ownerId: row.owner_id == null ? null : String(row.owner_id),
     ownerEmail: row.owner_email == null ? null : String(row.owner_email).toLowerCase(),
+    acquiredVia: isAcquiredVia(row.acquired_via) ? row.acquired_via : null,
     status: isStatus(row.status) ? row.status : null,
     buildingType: isBuildingType(row.building_type) ? row.building_type : null,
     facadeColor: normalizeColor(row.facade_color),
@@ -106,7 +123,9 @@ export function applyOverrides(
 ): OwnedLot[] {
   return lots.map((lot) => {
     const stored = overrides.get(lot.address);
-    if (!stored) return { ...lot, ownerId: null, claimed: false, awaitingOwner: false };
+    if (!stored) {
+      return { ...lot, ownerId: null, claimed: false, awaitingOwner: false, reserved: false };
+    }
 
     return {
       ...lot,
@@ -119,6 +138,9 @@ export function applyOverrides(
       // Either half of ownership means the lot is spoken for.
       claimed: stored.ownerId !== null || stored.ownerEmail !== null,
       awaitingOwner: stored.ownerId === null && stored.ownerEmail !== null,
+      // Reserved only until somebody signs in and takes it; after that it is
+      // simply their shop, however it was won.
+      reserved: stored.ownerId === null && stored.acquiredVia === 'giveaway',
     };
   });
 }

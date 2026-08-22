@@ -338,6 +338,11 @@ body {
   background: #f7d7d4;
 }
 
+/* Held back as a prize: not for sale, but not somebody's shop either. */
+.mw-card-state[data-state='giveaway'] {
+  background: #f5ce3e;
+}
+
 /* The moment after paying, before signing in — the one thing on the page. */
 .mw-bought {
   margin: 0 0 16px;

@@ -12,6 +12,7 @@ import {
   normalizeColor,
   normalizeSignText,
   overridesByAddress,
+  type AcquiredVia,
   type LotOverride,
 } from './inventory';
 import { generateLots, type BuildingType } from './lots';
@@ -38,7 +39,7 @@ export function isRealAddress(address: string): boolean {
 export type StoreResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 /** How a lot was acquired. Only `claim` is capped. */
-export type AcquiredVia = 'claim' | 'grant' | 'purchase';
+export type { AcquiredVia } from './inventory';
 
 /** One free lot per account — the rest are given or bought. */
 export const FREE_LOTS_PER_ACCOUNT = 1;
@@ -149,6 +150,7 @@ export async function transferLot(
             set owner_email = excluded.owner_email,
                 owner_id = null,
                 status = 'sold',
+                acquired_via = 'grant',
                 purchased_at = coalesce(lots.purchased_at, now()),
                 updated_at = now()`,
     [address, holder],

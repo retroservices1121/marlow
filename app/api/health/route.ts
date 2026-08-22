@@ -29,10 +29,11 @@ export async function GET() {
         where table_schema = 'public'
         order by table_name`,
     );
-    const counts = await db.one<{ users: string; lots: string; sessions: string }>(
-      `select (select count(*) from users)    as users,
-              (select count(*) from lots)     as lots,
-              (select count(*) from sessions) as sessions`,
+    // Sessions belong to Clerk since migration 005; there is no table to count.
+    const counts = await db.one<{ users: string; lots: string; logos: string }>(
+      `select (select count(*) from users)     as users,
+              (select count(*) from lots)      as lots,
+              (select count(*) from lot_logos) as logos`,
     );
 
     return Response.json({

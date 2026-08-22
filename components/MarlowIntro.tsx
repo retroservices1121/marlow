@@ -16,13 +16,44 @@
  * readable by a crawler and a screen reader — which for a product sold on
  * placement and links is the half that pays.
  *
- * Nothing is remembered between visits. Marlow stores nothing in the browser at
- * all, and keeping that true is worth more than sparing a returning visitor one
- * dismissal.
+ * Shown once per session, not once per page. It used to reappear on every
+ * navigation, which turned the argument for the town into an obstacle to seeing
+ * it — somebody walking three streets was asked three times whether they would
+ * like to know what this is.
+ *
+ * `sessionStorage`, deliberately, not `localStorage`: it lasts as long as the
+ * tab and no longer. Marlow keeps nothing about anybody between visits, and a
+ * returning visitor tomorrow is worth the pitch again. Every access is wrapped,
+ * because a browser set to block site data throws on the property itself rather
+ * than returning null.
+ *
+ * Until the answer is known there is nothing to show, so the first render puts
+ * out the pitch as plain hidden text. That keeps it in the server HTML for a
+ * crawler and for anybody with JavaScript off, which for a product sold on
+ * placement and links is the half that pays.
  */
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+/** Lasts as long as the tab. */
+const SEEN_KEY = 'mw-intro-seen';
+
+function alreadySeen(): boolean {
+  try {
+    return window.sessionStorage.getItem(SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function rememberSeen(): void {
+  try {
+    window.sessionStorage.setItem(SEEN_KEY, '1');
+  } catch {
+    /* Blocked storage only costs a repeated dismissal. */
+  }
+}
 
 export default function MarlowIntro({
   total,
@@ -36,17 +67,34 @@ export default function MarlowIntro({
   /** How to get about whatever this is sitting on. */
   hint?: string;
 }) {
-  const [open, setOpen] = useState(true);
+  // null until sessionStorage has been read; there is no correct thing to draw
+  // before that, and guessing produces a dialog that flashes and vanishes.
+  const [open, setOpen] = useState<boolean | null>(null);
   const close = useRef<HTMLButtonElement>(null);
   const reopen = useRef<HTMLButtonElement>(null);
+  const settled = useRef(false);
 
   const forSale = total - taken;
   const share = Math.max(1, Math.round((taken / total) * 100));
 
-  const dismiss = useCallback(() => setOpen(false), []);
+  useEffect(() => setOpen(!alreadySeen()), []);
+
+  const dismiss = useCallback(() => {
+    setOpen(false);
+    rememberSeen();
+  }, []);
 
   // Escape closes it, and focus moves somewhere sensible either way.
   useEffect(() => {
+    if (open === null) return;
+
+    // Arriving with it already dismissed is not an interaction, so nothing
+    // should take focus — that would scroll the page and lose somebody's place.
+    if (!settled.current) {
+      settled.current = true;
+      if (!open) return;
+    }
+
     if (!open) {
       reopen.current?.focus();
       return;
@@ -58,6 +106,20 @@ export default function MarlowIntro({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, dismiss]);
+
+  if (open === null) {
+    // Server render and first paint: the pitch as text, for crawlers and for
+    // anybody without JavaScript, who would otherwise get an empty corner.
+    return (
+      <div className="mw-visually-hidden">
+        <h2>Own a shopfront in Marlow</h2>
+        <p>
+          A town of {total} addresses across {districts} districts. Take one, put your name over the
+          door, and it is yours. {taken} taken, {forSale} still for sale.
+        </p>
+      </div>
+    );
+  }
 
   if (!open) {
     return (

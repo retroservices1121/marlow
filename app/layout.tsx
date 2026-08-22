@@ -1,6 +1,5 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata, Viewport } from 'next';
-import Script from 'next/script';
 import Nav from '@/components/Nav';
 import './globals.css';
 
@@ -17,11 +16,16 @@ export const viewport: Viewport = {
 /*
  * Analytics, and only when it is configured.
  *
+ * A plain <script>, deliberately, not next/script. With `afterInteractive` Next
+ * emits nothing but a preload link and injects the real tag from the client
+ * after hydration — so the page shipped a promise of analytics and recorded
+ * nothing. A parser-inserted tag is in the HTML itself and runs for every
+ * visitor, whether or not React ever wakes up.
+ *
  * The id is public — it ships in the HTML of every page, which is what
- * `NEXT_PUBLIC_` means — so it lives in an environment variable for
- * convenience, not secrecy. Rendering the tag only when the id is set keeps a
- * broken script out of local development and out of any deploy that has not
- * been given one.
+ * `NEXT_PUBLIC_` means — so the environment variable is for convenience, not
+ * secrecy. No id, no tag: local development and any deploy without one send
+ * nothing rather than sending it nowhere.
  *
  * DataFast turns itself off on localhost, so this never counts our own walking
  * about the town.
@@ -43,12 +47,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
 
           {DATAFAST_ID && (
-            <Script
+            <script
               defer
               data-website-id={DATAFAST_ID}
               data-domain={DATAFAST_DOMAIN}
               src="https://datafa.st/js/script.js"
-              strategy="afterInteractive"
             />
           )}
         </head>

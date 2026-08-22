@@ -80,14 +80,15 @@ export default function StoreProfileForm({
                 name={platform.key}
                 type="text"
                 defaultValue={profile.socials[platform.key] ?? ''}
-                placeholder="handle"
+                placeholder={'placeholder' in platform ? platform.placeholder : 'handle'}
                 spellCheck={false}
               />
             </label>
           ))}
         </div>
         <small className="mw-hint">
-          Just the handle — we build the link, so it always points where it says.
+          Just the handle, or the invite code for Discord — we build the link, so it always
+          points where it says.
         </small>
       </fieldset>
 

@@ -28,6 +28,9 @@ export const SOCIAL_PLATFORMS = [
   { key: 'tiktok', label: 'TikTok', prefix: 'https://tiktok.com/@' },
   { key: 'linkedin', label: 'LinkedIn', prefix: 'https://linkedin.com/company/' },
   { key: 'github', label: 'GitHub', prefix: 'https://github.com/' },
+  // An invite code, not a username: discord.gg/<code> is the only Discord link
+  // that does anything for somebody who is not already in the server.
+  { key: 'discord', label: 'Discord', prefix: 'https://discord.gg/', placeholder: 'invite code' },
 ] as const;
 
 export type SocialKey = (typeof SOCIAL_PLATFORMS)[number]['key'];

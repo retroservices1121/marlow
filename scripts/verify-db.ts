@@ -327,6 +327,30 @@ async function main() {
   // The link is built from a fixed prefix, so a handle cannot redirect it.
   check('49ak. social links are built from our own prefix', socialUrl('x', 'nike') === 'https://x.com/nike');
 
+  /*
+   * Discord is an invite, not a profile — the only Discord link that means
+   * anything to somebody who is not already in the server.
+   *
+   * Every other field is repeated here on purpose: a save is the whole profile,
+   * and anything left out is cleared. That is what makes a blank field the way
+   * to take something down, and it is why this cannot be a discord-only call.
+   */
+  const withDiscord = await saveStoreProfile(shop, bob.id, {
+    storeUrl: 'nike.com',
+    storeBio: 'Trainers and such.',
+    x: '@nike',
+    instagram: 'https://instagram.com/nike/',
+    discord: 'https://discord.gg/aB3xY9z',
+  });
+  check(
+    '49ak1. a pasted discord invite reduces to its code',
+    withDiscord.ok && withDiscord.value.socials.discord === 'aB3xY9z',
+  );
+  check(
+    '49ak2. a discord link is built as an invite',
+    socialUrl('discord', 'aB3xY9z') === 'https://discord.gg/aB3xY9z',
+  );
+
   for (const nasty of ['javascript:alert(1)', 'data:text/html,<script>x</script>', 'file:///etc/passwd', 'vbscript:msgbox']) {
     check(`49al. refuses ${nasty.split(':')[0]}: urls`, normalizeUrl(nasty) === null, nasty);
   }

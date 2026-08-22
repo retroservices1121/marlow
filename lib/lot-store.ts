@@ -144,6 +144,7 @@ const SOCIAL_COLUMNS: Record<SocialKey, string> = {
   tiktok: 'social_tiktok',
   linkedin: 'social_linkedin',
   github: 'social_github',
+  discord: 'social_discord',
 };
 
 type ProfileRow = Record<string, unknown> & { store_url?: unknown; store_bio?: unknown };
@@ -217,23 +218,33 @@ export async function saveStoreProfile(
     handles[platform.key] = handle;
   }
 
+  /*
+   * Built from SOCIAL_PLATFORMS rather than written out, so adding a platform
+   * is one line in one file. The hand-written version listed every column and
+   * every parameter position twice, which meant adding Discord silently wrote
+   * the owner id into a handle column until the numbering was fixed by hand.
+   *
+   * The column names come from SOCIAL_COLUMNS, a fixed constant — never from
+   * anything a user supplied — so interpolating them is safe. Every value is
+   * still a bound parameter.
+   */
+  const assignments = SOCIAL_PLATFORMS.map(
+    (platform, i) => `${SOCIAL_COLUMNS[platform.key]} = $${i + 4}`,
+  ).join(', ');
+  const ownerParam = SOCIAL_PLATFORMS.length + 4;
+
   const db = await getDb();
   await db.query(
     `update lots
         set store_url = $2, store_bio = $3,
-            social_x = $4, social_instagram = $5, social_tiktok = $6,
-            social_linkedin = $7, social_github = $8,
+            ${assignments},
             updated_at = now()
-      where address = $1 and owner_id = $9`,
+      where address = $1 and owner_id = $${ownerParam}`,
     [
       address,
       storeUrl,
       storeBio,
-      handles.x ?? null,
-      handles.instagram ?? null,
-      handles.tiktok ?? null,
-      handles.linkedin ?? null,
-      handles.github ?? null,
+      ...SOCIAL_PLATFORMS.map((platform) => handles[platform.key] ?? null),
       userId,
     ],
   );

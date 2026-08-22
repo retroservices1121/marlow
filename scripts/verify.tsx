@@ -341,6 +341,34 @@ check(
 );
 
 check(
+  '33a. every junction post names both streets',
+  scenes.every((scene) => {
+    const turnings = scene.street.main
+      ? junctionsOn(scene.street).map((j) => j.street.name)
+      : ['Main Street'];
+    return turnings.every((name) => scene.svg.includes(name.toUpperCase()));
+  }),
+);
+
+/*
+ * Signposts stand on the pavement, never in the road. The post is the narrow
+ * rect at the sign's own origin, so its x must fall inside a pavement run.
+ */
+check(
+  '33b. no signpost stands in the road',
+  scenes.every((scene) => {
+    const posts = [...scene.svg.matchAll(/<g transform="translate\(([-\d.]+) 590\)"/g)].map((m) =>
+      Number(m[1]),
+    );
+    if (posts.length === 0) return false;
+    const pavements = [...scene.svg.matchAll(/<rect x="([-\d.]+)" y="560" width="([\d.]+)"/g)].map(
+      (m) => [Number(m[1]), Number(m[1]) + Number(m[2])] as const,
+    );
+    return posts.every((x) => pavements.some(([from, to]) => x >= from && x <= to));
+  }),
+);
+
+check(
   '34. a side street is a fraction of the old single row',
   scenes.filter((s) => !s.street.main).every((s) => s.lots.length === 24),
 );

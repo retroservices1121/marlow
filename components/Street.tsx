@@ -274,6 +274,46 @@ export default function Street({
     size: starRng.range(1.4, 3.2),
   }));
 
+  /*
+   * Where each signpost stands. Always on a pavement corner: for a turning
+   * partway along a street that is the corner just before the opening, and for
+   * a side street — whose junction is at its head — the corner just after it,
+   * where the post carries this street's name and the way back.
+   */
+  /*
+   * A signpost stands on the pavement at each junction and names both streets,
+   * as a real corner sign does. Its plates reach out over the opening, where
+   * the road behind them is empty — hung the other way they land on a
+   * shopfront's own sign.
+   */
+  const KERB_INSET = 10;
+  type Signpost = {
+    key: string;
+    x: number;
+    plates: { name: string; pointsTo?: 'left' | 'right' }[];
+    reach: 'left' | 'right';
+    to: StreetDef;
+    gap: PlacedOpening;
+  };
+  const signposts: Signpost[] = street
+    ? gaps.map((gap) => {
+        const opensStreet = gap.afterBlock === -1;
+        return {
+          key: gap.to.slug,
+          // Before the opening, or just after it when the street starts with one.
+          x: opensStreet ? gap.until + KERB_INSET : gap.from - KERB_INSET,
+          // This street's plate faces you; the turning's points down it.
+          plates: [
+            { name: street.name },
+            { name: gap.label, pointsTo: opensStreet ? ('left' as const) : ('right' as const) },
+          ],
+          reach: opensStreet ? ('left' as const) : ('right' as const),
+          to: gap.to,
+          gap,
+        };
+      })
+    : [];
+
   const roadMark = mixHex(palette.road, '#FFFFFF', night ? 0.35 : 0.55);
   /* Light pooling on the pavement under a lamp — never a cone over the shops. */
   const lampGlow = mixHex(palette.sidewalk, LAMP_GLOW, 0.6);
@@ -426,52 +466,37 @@ export default function Street({
         />
       ))}
 
-      {/* This street's own name, on the first corner of its own pavement —
-          not at the edge of the scene, where a side street's junction sign
-          already stands and the two would sit on top of each other. */}
-      {street && blocks.length > 0 && (
-        <StreetSign
-          x={Math.max(
-            blocks[0].pavementFrom + 26,
-            streetSignWidth(street.name) / 2 + 10,
-          )}
-          baseline={FURNITURE_BASELINE}
-          name={street.name}
-          stroke={stroke}
-          wash={wash}
-        />
-      )}
-
-      {/* Each turning, signed and walkable */}
-      {gaps.map((gap) => {
-        // On the near corner rather than mid-road: that is where a street sign
-        // stands, and it leaves the view down the turning unobstructed.
-        const post = gap.from + Math.max(34, streetSignWidth(gap.label) / 2 + 8);
+      {/*
+        * Signposts stand on the pavement corner, never in the road. Where a
+        * side street meets Main Street the one post carries both names, which
+        * is what a real junction does and what stops two posts colliding.
+        */}
+      {signposts.map((post) => {
         const sign = (
           <StreetSign
-            x={post}
+            x={post.x}
             baseline={FURNITURE_BASELINE}
-            name={gap.label}
+            plates={post.plates}
+            reach={post.reach}
             stroke={stroke}
             wash={wash}
           />
         );
-        const href = hrefForStreet?.(gap.to);
-        if (!href) return <g key={`turn-${gap.to.slug}`}>{sign}</g>;
+        const href = hrefForStreet?.(post.to);
+        if (!href) return <g key={post.key}>{sign}</g>;
         return (
           <a
-            key={`turn-${gap.to.slug}`}
+            key={post.key}
             className="mw-turning"
             href={href}
-            aria-label={`Turn into ${gap.label}`}
-            data-turning={gap.to.slug}
+            aria-label={`Turn into ${post.to.name}`}
+            data-turning={post.to.slug}
           >
-            {/* An invisible target over the whole opening, so the turning is the
-                gap itself rather than just the signpost. */}
+            {/* The whole opening is the turning, not just the signpost. */}
             <rect
-              x={gap.from}
+              x={post.gap.from}
               y={BASELINE - 150}
-              width={gap.until - gap.from}
+              width={post.gap.until - post.gap.from}
               height={CURB_Y - BASELINE + 150}
               fill="transparent"
             />

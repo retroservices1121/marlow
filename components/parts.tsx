@@ -609,59 +609,97 @@ export function Star({ x, y, size }: { x: number; y: number; size: number }) {
 /* Street identity                                                        */
 /* ====================================================================== */
 
+export type SignPlate = {
+  name: string;
+  /** Set for a street that turns off here; the plate points down it. */
+  pointsTo?: 'left' | 'right';
+};
+
 export type StreetSignProps = {
   x: number;
   /** Sidewalk line the post stands on. */
   baseline: number;
-  name: string;
+  /**
+   * One plate per name. A corner where two streets meet carries both on the one
+   * post, and the plate for the street that turns off is pointed at it — the two
+   * do not face the same way in life and should not here.
+   */
+  plates: readonly SignPlate[];
+  /**
+   * Which way the plates reach from the post. A corner post stands on the
+   * pavement and its plates hang out over the junction, where there is open
+   * road behind them rather than somebody's shop sign.
+   */
+  reach?: 'left' | 'right';
   stroke: string;
   wash: (hex: string) => string;
 };
 
-/**
- * A corner street sign. This is what makes a block's identity — and therefore
- * its price — visible; without it Main Street and a side street are the same
- * row of buildings.
- */
-/** Plate width for a street name, so callers can keep it inside the scene. */
-export function streetSignWidth(name: string): number {
-  return Math.max(96, name.length * 9.4);
+/** Plate width for the widest of these names, so callers can keep it in frame. */
+export function streetSignWidth(plates: readonly SignPlate[]): number {
+  return plates.reduce((widest, plate) => Math.max(widest, 96, plate.name.length * 9.4), 96);
 }
 
-export function StreetSign({ x, baseline, name, stroke, wash }: StreetSignProps) {
-  const height = 96;
-  const plateWidth = streetSignWidth(name);
-  const plateHeight = 26;
+const SIGN_POST_HEIGHT = 96;
+const SIGN_PLATE_HEIGHT = 26;
+
+export function StreetSign({
+  x,
+  baseline,
+  plates,
+  reach = 'right',
+  stroke,
+  wash,
+}: StreetSignProps) {
+  const plateWidth = streetSignWidth(plates);
   const plate = wash('#3F5C77');
+  const plateLeft = reach === 'right' ? -10 : -plateWidth + 10;
+  const nib = 13;
 
   return (
     <g transform={`translate(${x} ${baseline})`}>
-      <rect x={-4} y={-height} width={8} height={height} fill={wash('#4A4F58')} stroke={stroke} {...INK} />
+      <rect
+        x={-4}
+        y={-SIGN_POST_HEIGHT}
+        width={8}
+        height={SIGN_POST_HEIGHT}
+        fill={wash('#4A4F58')}
+        stroke={stroke}
+        {...INK}
+      />
       <rect x={-13} y={-5} width={26} height={9} rx={2} fill={wash('#4A4F58')} stroke={stroke} {...INK} />
-      <g transform={`translate(${-plateWidth / 2} ${-height - plateHeight + 8})`}>
-        <rect
-          width={plateWidth}
-          height={plateHeight}
-          rx={CORNER_RADIUS}
-          fill={plate}
-          stroke={stroke}
-          {...INK}
-        />
-        <text
-          x={plateWidth / 2}
-          y={plateHeight / 2}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontFamily={SIGN_FONT}
-          fontWeight={600}
-          fontSize={13}
-          letterSpacing={0.8}
-          fill={inkOn(plate)}
-          stroke="none"
-        >
-          {name.toUpperCase()}
-        </text>
-      </g>
+      {plates.map((entry, i) => {
+        const h = SIGN_PLATE_HEIGHT;
+        const shape =
+          entry.pointsTo === 'left'
+            ? `${nib},0 ${plateWidth},0 ${plateWidth},${h} ${nib},${h} 0,${h / 2}`
+            : entry.pointsTo === 'right'
+              ? `0,0 ${plateWidth - nib},0 ${plateWidth},${h / 2} ${plateWidth - nib},${h} 0,${h}`
+              : `0,0 ${plateWidth},0 ${plateWidth},${h} 0,${h}`;
+        const shift = entry.pointsTo === 'left' ? nib / 2 : entry.pointsTo === 'right' ? -nib / 2 : 0;
+        return (
+          <g
+            key={entry.name}
+            transform={`translate(${plateLeft} ${-SIGN_POST_HEIGHT - h + 8 + i * (h + 4)})`}
+          >
+            <polygon points={shape} fill={plate} stroke={stroke} {...INK} />
+            <text
+              x={plateWidth / 2 + shift}
+              y={h / 2}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontFamily={SIGN_FONT}
+              fontWeight={600}
+              fontSize={13}
+              letterSpacing={0.8}
+              fill={inkOn(plate)}
+              stroke="none"
+            >
+              {entry.name.toUpperCase()}
+            </text>
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -683,64 +721,93 @@ export type CrossingProps = {
 /**
  * The side street running away between two blocks.
  *
- * A flat elevation cannot show depth with perspective, so the receding road is
- * a plain tapered polygon and the buildings along it are small silhouettes
- * washed toward the sky — flat fills throughout, no gradients. Without them the
- * opening reads as a missing building rather than somewhere you can go.
+ * A flat elevation has no perspective to lean on, so the view down a turning is
+ * built by hand: the road narrows toward a vanishing point with a terrace
+ * running back along each side of it. The walls matter as much as the road —
+ * without them the road is a wedge hanging in mid-air with sky either side, and
+ * the turning reads as a hole rather than a street.
+ *
+ * Flat fills throughout. Depth comes from washing colours toward the sky, which
+ * is a flat-illustration technique rather than a gradient.
  */
 export function Crossing({ x, width, baseline, curbY, road, stroke, sky, seed }: CrossingProps) {
-  const depth = 88;
-  const taper = Math.min(38, width * 0.28);
+  const depth = 96;
+  const taper = Math.min(46, width * 0.3);
   const horizon = baseline - depth;
   const rng = seededRandom(`${seed}#crossing`);
 
-  /*
-   * The far end of the street: one low terrace across the back of the opening,
-   * washed toward the sky so it sits behind everything. Earlier this was three
-   * rows of buildings at different depths, which in a gap this narrow read as a
-   * cluster of towers floating in a slot rather than a street going away.
-   */
-  const backFill = mixHex('#6E7A85', sky, 0.5);
-  const terraceHeight = 46;
-  const terraceTop = horizon - terraceHeight;
-  const terraceFrom = taper * 0.5;
-  const terraceWidth = width - taper;
+  const near = mixHex('#7A8590', sky, 0.32);
+  const far = mixHex('#7A8590', sky, 0.58);
+  const nearTop = baseline - 182;
+  const farTop = horizon - 78;
 
-  const roofs: ReactNode[] = [];
-  const roofCount = 3;
-  for (let i = 0; i < roofCount; i++) {
-    const segment = terraceWidth / roofCount;
-    const left = terraceFrom + segment * i;
-    const peak = 10 + rng.range(0, 9);
-    roofs.push(
+  /** One side of the street, receding toward the vanishing point. */
+  const wall = (side: -1 | 1) => {
+    const nearX = side < 0 ? 0 : width;
+    const farX = side < 0 ? taper : width - taper;
+    const at = (t: number) => ({
+      x: nearX + (farX - nearX) * t,
+      top: nearTop + (farTop - nearTop) * t,
+      ground: baseline + (horizon - baseline) * t,
+    });
+    return (
+      <g key={side}>
+        <polygon
+          points={`${nearX},${nearTop} ${farX},${farTop} ${farX},${horizon} ${nearX},${baseline}`}
+          fill={near}
+          stroke={stroke}
+          {...INK}
+        />
+        {[0.36, 0.68].map((t, i) => {
+          const d = at(t);
+          return <line key={i} x1={d.x} y1={d.top} x2={d.x} y2={d.ground} stroke={stroke} {...INK} />;
+        })}
+      </g>
+    );
+  };
+
+  /* The far end, closing the view. */
+  const backHeight = 54;
+  const backTop = horizon - backHeight;
+  const backWidth = width - taper * 2;
+  const roofs = [0, 1, 2].map((i) => {
+    const segment = backWidth / 3;
+    const left = taper + segment * i;
+    const peak = 9 + rng.range(0, 8);
+    return (
       <polygon
         key={i}
-        points={`${left},${terraceTop} ${left + segment / 2},${terraceTop - peak} ${left + segment},${terraceTop}`}
-        fill={shade(backFill, 0.14)}
+        points={`${left},${backTop} ${left + segment / 2},${backTop - peak} ${left + segment},${backTop}`}
+        fill={shade(far, 0.12)}
         stroke={stroke}
         {...INK}
-      />,
+      />
     );
-  }
+  });
 
   return (
     <g transform={`translate(${x} 0)`}>
       {/* Ground plane of the crossing, where the pavement would otherwise run */}
       <rect x={0} y={baseline} width={width} height={curbY - baseline} fill={road} />
+
+      {/* Far end first, then the sides in front of it */}
       {roofs}
       <rect
-        x={terraceFrom}
-        y={terraceTop}
-        width={terraceWidth}
-        height={terraceHeight}
-        fill={backFill}
+        x={taper}
+        y={backTop}
+        width={backWidth}
+        height={backHeight}
+        fill={far}
         stroke={stroke}
         {...INK}
       />
-      {/* The street receding out of view */}
+      {wall(-1)}
+      {wall(1)}
+
+      {/* The road running back between them */}
       <polygon
         points={`0,${baseline} ${width},${baseline} ${width - taper},${horizon} ${taper},${horizon}`}
-        fill={shade(road, 0.16)}
+        fill={shade(road, 0.18)}
         stroke={stroke}
         {...INK}
       />

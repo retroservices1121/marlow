@@ -326,20 +326,17 @@ check(
 );
 
 /*
- * One deliberate exception to "no image files": the building someone was linked
- * to shows its store logo on its marker. Exactly one image, same-origin, and
- * only when a highlight is asked for.
+ * The one deliberate exception to "no image files": an owner's logo hangs over
+ * their door. One image per shop that has one, always same-origin, and none at
+ * all on a street where nobody has uploaded anything.
  */
-const highlighted = renderToStaticMarkup(
-  <Street
-    lots={lots}
-    timeOfDay="day"
-    highlightAddress={lots[0].address}
-    highlightLogoUrl={`/api/logo/${encodeURIComponent(lots[0].address)}?v=abc`}
-  />,
+const logoFor = (address: string) => `/api/logo/${encodeURIComponent(address)}?v=abc`;
+
+const oneLogo = renderToStaticMarkup(
+  <Street lots={lots} timeOfDay="day" logoUrls={{ [lots[0].address]: logoFor(lots[0].address) }} />,
 );
-const images = highlighted.match(/<image[^>]*>/g) || [];
-check('24a. a highlighted building shows exactly one logo', images.length === 1, String(images.length));
+const images = oneLogo.match(/<image[^>]*>/g) || [];
+check('24a. a shop with a logo shows exactly one', images.length === 1, String(images.length));
 check(
   '24b. that logo is served from our own origin',
   images.every((tag) => /href="\/api\/logo\//.test(tag)),
@@ -348,6 +345,45 @@ check(
 check(
   '24c. no logo is loaded unless one is asked for',
   !/<image/.test(renderStreet(lots, 'day')),
+);
+
+/*
+ * A logo is not a privilege of the linked-to building. Three owners with logos
+ * means three logos on the street, whether or not anybody was sent to one of
+ * them — that is the thing they paid for.
+ */
+const threeAddresses = lots.slice(0, 3).map((l) => l.address);
+const threeLogos = renderToStaticMarkup(
+  <Street
+    lots={lots}
+    timeOfDay="day"
+    logoUrls={Object.fromEntries(threeAddresses.map((a) => [a, logoFor(a)]))}
+  />,
+);
+check(
+  '24d. every shop with a logo shows it, not just a highlighted one',
+  (threeLogos.match(/<image[^>]*>/g) || []).length === 3,
+  String((threeLogos.match(/<image[^>]*>/g) || []).length),
+);
+check(
+  '24e. each logo is clipped by its own id, so markers cannot collide',
+  new Set(threeLogos.match(/clipPath id="logo-[^"]*"/g) || []).size === 3,
+);
+
+/*
+ * The pin still means "this one". A highlighted shop with no logo of its own
+ * keeps the plain marker, and an ordinary shop with no logo has none at all.
+ */
+const pinned = renderToStaticMarkup(
+  <Street lots={lots} timeOfDay="day" highlightAddress={lots[0].address} />,
+);
+check(
+  '24f. a highlighted shop without a logo still gets a marker',
+  (pinned.match(/class="mw-marker"/g) || []).length === 1,
+);
+check(
+  '24g. an unhighlighted street with no logos has no markers',
+  !/class="mw-marker"/.test(renderStreet(lots, 'day')),
 );
 check('25. uniform stroke width', new Set((svg.match(/stroke-width="[^"]*"/g) || [])).size === 2, [...new Set(svg.match(/stroke-width="[^"]*"/g) || [])].join(' '));
 check(

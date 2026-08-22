@@ -571,6 +571,61 @@ body {
   background: #f5ce3e;
 }
 
+/*
+ * The price, on the tile.
+ *
+ * Shown only while a lot is still for sale: once it is somebody's shop, what
+ * they paid is nobody's business and the space belongs to their name.
+ */
+.mw-address-price {
+  margin-left: auto;
+  flex: none;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 2px 6px;
+  border: 2px solid var(--mw-ink);
+  border-radius: 2px;
+  background: #d9f0d5;
+}
+
+/* Pick a price. Links, not client state, so every view is linkable. */
+.mw-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+
+.mw-filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b6b64;
+  margin-right: 2px;
+}
+
+.mw-filter-chip {
+  padding: 6px 11px;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+  background: var(--mw-panel);
+  color: var(--mw-ink);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mw-filter-chip:hover {
+  background: #ffe9b8;
+}
+
+.mw-filter-chip[aria-current='true'] {
+  background: var(--mw-ink);
+  color: var(--mw-panel);
+}
+
 .mw-address-for-sale .mw-address-name {
   color: #6b6b64;
   font-style: italic;
@@ -1179,10 +1234,20 @@ body {
   color: #6b6b64;
 }
 
+/*
+ * Top right, not top left.
+ *
+ * A street starts at its first building, so the leftmost lot is what a visitor
+ * sees on arrival — and that lot's logo marker floats above its roof into
+ * exactly the corner this chip used to sit in. On Main Street that lot is the
+ * $200 corner, so the most expensive address in the town had its branding
+ * tucked under a UI control. The chip yields; the thing somebody paid for does
+ * not.
+ */
 .mw-intro-reopen {
   position: absolute;
   top: 16px;
-  left: 16px;
+  right: 16px;
   font: inherit;
   font-size: 13px;
   font-weight: 600;

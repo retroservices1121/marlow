@@ -11,7 +11,7 @@ import { notFound } from 'next/navigation';
 import StreetView from '@/components/StreetView';
 import MarlowIntro from '@/components/MarlowIntro';
 import { buildInventory } from '@/lib/inventory';
-import { getOverrides, isRealAddress, logoHash } from '@/lib/lot-store';
+import { getOverrides, isRealAddress, logoHashesFor } from '@/lib/lot-store';
 import { DISTRICTS, STREETS, junctionsOn, parentStreet, streetBySlug } from '@/lib/lots';
 
 export const dynamic = 'force-dynamic';
@@ -41,10 +41,19 @@ export default async function StreetPage({
     requested && isRealAddress(requested) && lots.some((l) => l.address === requested)
       ? requested
       : null;
-  const focusLogo = focusAddress ? await logoHash(focusAddress) : null;
-  const focusLogoUrl = focusLogo
-    ? `/api/logo/${encodeURIComponent(focusAddress as string)}?v=${focusLogo}`
-    : null;
+  /*
+   * Every owned shop's logo, not just the one somebody was linked to.
+   *
+   * A logo above the door is what an owner bought, so it hangs there whenever
+   * anyone walks past. Only claimed lots can have one, so this is bounded by
+   * how much of the street is sold rather than by its length.
+   */
+  const claimed = lots.filter((l) => l.claimed).map((l) => l.address);
+  const hashes = await logoHashesFor(claimed);
+  const logoUrls: Record<string, string> = {};
+  for (const [address, hash] of hashes) {
+    logoUrls[address] = `/api/logo/${encodeURIComponent(address)}?v=${hash}`;
+  }
 
   const forSale = lots.filter((l) => !l.claimed).length;
   const turnings = street.main ? junctionsOn(street).map((j) => j.street) : [];
@@ -66,7 +75,7 @@ export default async function StreetPage({
       <StreetView
         lots={lots}
         focusAddress={focusAddress}
-        focusLogoUrl={focusLogoUrl}
+        logoUrls={logoUrls}
         overlay={
           <MarlowIntro
             total={everywhere.length}

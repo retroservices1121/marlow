@@ -312,6 +312,22 @@ export async function logoHash(address: string): Promise<string | null> {
   return row?.hash ?? null;
 }
 
+/**
+ * Logo hashes for a whole street at once.
+ *
+ * A street is up to 48 buildings, and asking per building is 48 round trips to
+ * render one page. Addresses not in the result simply have no logo.
+ */
+export async function logoHashesFor(addresses: string[]): Promise<Map<string, string>> {
+  if (addresses.length === 0) return new Map();
+  const db = await getDb();
+  const rows = await db.query<{ address: string; hash: string }>(
+    'select address, hash from lot_logos where address = any($1)',
+    [addresses],
+  );
+  return new Map(rows.map((r) => [r.address, r.hash]));
+}
+
 export async function deleteLogo(address: string, userId: string): Promise<StoreResult<null>> {
   const db = await getDb();
   const rows = await db.query(

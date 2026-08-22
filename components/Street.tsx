@@ -75,8 +75,8 @@ export type StreetProps = {
   hrefForLot?: (lot: Lot) => string;
   /** Address someone was linked directly to, pinned so it stands out. */
   highlightAddress?: string | null;
-  /** Logo for that one building, if its store has one. */
-  highlightLogoUrl?: string | null;
+  /** Logo per address, for every owned shop that has one. */
+  logoUrls?: Record<string, string>;
   /** Where a turning leads. Without this the openings are decoration. */
   hrefForStreet?: (street: StreetDef) => string;
 };
@@ -230,7 +230,7 @@ export default function Street({
   className,
   hrefForLot,
   highlightAddress,
-  highlightLogoUrl,
+  logoUrls,
   hrefForStreet,
 }: StreetProps) {
   const palette = TIME_PALETTES[timeOfDay];
@@ -464,7 +464,7 @@ export default function Street({
           baseline={BASELINE}
           href={hrefForLot?.(lot)}
           highlighted={lot.address === highlightAddress}
-          logoUrl={lot.address === highlightAddress ? highlightLogoUrl : null}
+          logoUrl={logoUrls?.[lot.address] ?? null}
         />
       ))}
 

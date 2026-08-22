@@ -33,12 +33,13 @@ const WALK_SPEED = 900;
 export default function StreetView({
   lots,
   focusAddress = null,
-  focusLogoUrl = null,
+  logoUrls,
   overlay,
 }: {
   lots: OwnedLot[];
   focusAddress?: string | null;
-  focusLogoUrl?: string | null;
+  /** Logo per address, for every owned shop on this street. */
+  logoUrls?: Record<string, string>;
   /** Rendered over the street — the pitch, when somebody arrives here first. */
   overlay?: ReactNode;
 }) {
@@ -216,7 +217,7 @@ export default function StreetView({
             timeOfDay={timeOfDay}
             hrefForLot={(lot: Lot) => `/lots/${encodeURIComponent(lot.address)}`}
             highlightAddress={focusAddress}
-            highlightLogoUrl={focusLogoUrl}
+            logoUrls={logoUrls}
             hrefForStreet={(street: StreetDef) => `/street/${street.slug}`}
           />
         </div>

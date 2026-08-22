@@ -447,9 +447,15 @@ export default function Building({
           </>
         )}
 
-        {/* A marker for whoever was sent this exact address, carrying the
-            store's logo when it has one. */}
-        {highlighted && (
+        {/*
+         * The marker above the roof, for two different reasons.
+         *
+         * A logo hangs over an owner's door whenever anybody walks past — it is
+         * part of what they bought. The plain red pin is the other job: saying
+         * "this one" to somebody who followed a link to this exact address, and
+         * it appears only for them, on a shop with no logo of its own to show.
+         */}
+        {(highlighted || logoUrl) && (
           <g className="mw-marker" transform={`translate(${W / 2} ${-(H + geo.roofHeight) - 18})`}>
             <polygon points="0,0 15,-19 -15,-19" fill="#E8544B" stroke={stroke} {...INK} />
             {logoUrl ? (

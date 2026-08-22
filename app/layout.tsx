@@ -49,15 +49,22 @@ export const viewport: Viewport = {
  * nothing. A parser-inserted tag is in the HTML itself and runs for every
  * visitor, whether or not React ever wakes up.
  *
- * The id is public — it ships in the HTML of every page, which is what
- * `NEXT_PUBLIC_` means — so the environment variable is for convenience, not
- * secrecy. No id, no tag: local development and any deploy without one send
- * nothing rather than sending it nowhere.
+ * The id is written here rather than left to configuration. It is public by
+ * construction — it ships in the HTML of every page — so there was never
+ * anything to protect, and an environment variable bought nothing but a place
+ * for it to go wrong quietly. It did: a mistyped value sat in Railway reporting
+ * to a website that does not exist, and because a wrong id looks exactly like a
+ * right one in the markup, the only symptom was an empty dashboard.
+ *
+ * In the file it is reviewable, it travels with the code, and it cannot be one
+ * forgotten rebuild out of date — `NEXT_PUBLIC_` values are baked in at build
+ * time, so setting one and restarting changes nothing. The env var still
+ * overrides, for a staging site that should report separately.
  *
  * DataFast turns itself off on localhost, so this never counts our own walking
  * about the town.
  */
-const DATAFAST_ID = process.env.NEXT_PUBLIC_DATAFAST_ID;
+const DATAFAST_ID = process.env.NEXT_PUBLIC_DATAFAST_ID ?? 'dfid_ii1m3WadIJpQo7KtlxnCy';
 const DATAFAST_DOMAIN = process.env.NEXT_PUBLIC_DATAFAST_DOMAIN ?? 'marlow.town';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

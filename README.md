@@ -72,6 +72,28 @@ exactly that.
 Ownership is enforced in `lib/lot-store.ts`, not in the UI. A server action
 that forgets to check still cannot write to someone else's lot.
 
+## Blocks, corners and tiers
+
+The four streets are drawn as four blocks separated by an intersection: the
+pavement stops, the kerb returns, the side street recedes between them, and a
+sign names each block. Within a block buildings still share walls exactly as the
+renderer spec requires — the gap exists only at block boundaries.
+
+This is a deliberate change to that rule, and pricing is the reason. Every lot
+carries a `tier`:
+
+| tier | count | where |
+| --- | --- | --- |
+| `corner` | 8 | first and last lot of every block, flanking an intersection |
+| `main` | 46 | the rest of Main Street |
+| `side` | 66 | the rest of the cross streets |
+
+Before the intersections existed those tiers were invisible: one unbroken
+terrace 18,698 units long, with no way to tell Main Street from Willow Lane and
+no corner anywhere. Charging more for a `corner` or a `main` lot would have been
+charging for something no visitor could perceive. The renderer now shows the
+difference the price is based on.
+
 ## Buying before you have an account
 
 A lot is bought at checkout, where there is no user yet — only the email the

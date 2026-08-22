@@ -216,8 +216,17 @@ check(
   lots.every((l) => l.number % 2 === 0) && mainLots[0].number === 100 && mainLots[1].number === 102,
 );
 check(
-  '20. Main Street ends are corners',
-  corners.length === 2 && corners[0].address === mainLots[0].address && corners[1].address === mainLots[mainLots.length - 1].address,
+  '20. every block has a corner at each end',
+  (() => {
+    if (corners.length !== 8) return false;
+    for (const streetName of new Set(lots.map((l) => l.street))) {
+      const run = lots.filter((l) => l.street === streetName);
+      if (run[0].tier !== 'corner' || run[run.length - 1].tier !== 'corner') return false;
+      if (run.slice(1, -1).some((l) => l.tier === 'corner')) return false;
+    }
+    return true;
+  })(),
+  `${corners.length} corners`,
 );
 check('21. tiers are corner/main/side only', new Set(lots.map((l) => l.tier)).size === 3);
 
@@ -236,15 +245,28 @@ const duskLit = (dusk.match(/#FFD98A/g) || []).length;
 const nightLit = (renderStreet(lots, 'night').match(/#FFD98A/g) || []).length;
 check('29. dusk lights roughly half of night', duskLit > 0 && duskLit < nightLit, `dusk ${duskLit} / night ${nightLit}`);
 
-/* Cumulative layout sanity. */
+/* Cumulative layout: walls touch inside a block, blocks are separated by a street. */
+const INTERSECTION = 210;
 let cursor = 48;
+let previousStreet: string | null = null;
 let contiguous = true;
+let gaps = 0;
 for (const lot of lots) {
+  if (previousStreet !== null && lot.street !== previousStreet) {
+    cursor += INTERSECTION;
+    gaps += 1;
+  }
+  previousStreet = lot.street;
   const g = deriveGeometry(lot.address, lot.buildingType);
   contiguous &&= svg.includes(`translate(${cursor} 560)`);
   cursor += g.width;
 }
-check('30. buildings share walls with no gaps', contiguous);
+check('30. buildings share walls within a block', contiguous);
+check('31. blocks are separated by an intersection', gaps === 3, `${gaps} gaps`);
+check(
+  '32. every street is named on the scene',
+  [...new Set(lots.map((l) => l.street))].every((name) => svg.includes(name.toUpperCase())),
+);
 console.log(`street width: ${cursor + 48} units`);
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);

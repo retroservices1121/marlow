@@ -18,13 +18,30 @@ import {
   type TimeOfDay,
 } from '@/lib/palette';
 import Building, { DEFAULT_BASELINE, buildingTotalHeight, deriveGeometry } from './Building';
-import { Cloud, FURNITURE, FURNITURE_KINDS, INK, Star } from './parts';
+import {
+  Cloud,
+  Crossing,
+  FURNITURE,
+  FURNITURE_KINDS,
+  INK,
+  Star,
+  StreetSign,
+  streetSignWidth,
+} from './parts';
 
 export const BASELINE = DEFAULT_BASELINE;
 export const SIDEWALK_HEIGHT = 56;
 export const VIEW_HEIGHT = 720;
 /** Empty run of sidewalk before the first and after the last building. */
 export const STREET_MARGIN = 48;
+/**
+ * Gap where one block ends and the next begins. Buildings still share walls
+ * within a block — the spec's rule — but a town whose streets are priced
+ * differently has to show where one street stops and another starts.
+ */
+export const INTERSECTION_WIDTH = 210;
+/** Pavement that wraps past the end building before the kerb turns the corner. */
+const PAVEMENT_RETURN = 30;
 
 const CURB_Y = BASELINE + SIDEWALK_HEIGHT;
 /** Furniture stands part-way across the sidewalk, in front of the facades. */
@@ -49,24 +66,67 @@ type Placement = {
   width: number;
 };
 
+/** One street's continuous run of buildings. */
+type Block = {
+  street: string;
+  x: number;
+  width: number;
+  /** Pavement extent, which overhangs the buildings before the kerb returns. */
+  pavementFrom: number;
+  pavementTo: number;
+};
+
 type FurniturePlacement = {
   key: string;
   kind: keyof typeof FURNITURE;
   x: number;
 };
 
-/** Cumulative x positions. Shared walls, no gaps. */
-function layout(lots: Lot[]): { placements: Placement[]; totalWidth: number; skyline: number } {
+/**
+ * Cumulative x positions. Walls are shared inside a block; blocks are separated
+ * by an intersection.
+ */
+function layout(lots: Lot[]): {
+  placements: Placement[];
+  blocks: Block[];
+  totalWidth: number;
+  skyline: number;
+} {
   let cursor = STREET_MARGIN;
   let skyline = 0;
-  const placements = lots.map((lot) => {
+  const placements: Placement[] = [];
+  const blocks: Block[] = [];
+  let current: Block | null = null;
+
+  for (const lot of lots) {
+    if (current && lot.street !== current.street) {
+      current.width = cursor - current.x;
+      blocks.push(current);
+      cursor += INTERSECTION_WIDTH;
+      current = null;
+    }
+    if (!current) {
+      current = { street: lot.street, x: cursor, width: 0, pavementFrom: 0, pavementTo: 0 };
+    }
+
     const geo = deriveGeometry(lot.address, lot.buildingType);
-    const placement = { lot, x: cursor, width: geo.width };
+    placements.push({ lot, x: cursor, width: geo.width });
     cursor += geo.width;
     skyline = Math.max(skyline, buildingTotalHeight(geo));
-    return placement;
+  }
+
+  if (current) {
+    current.width = cursor - current.x;
+    blocks.push(current);
+  }
+
+  const totalWidth = cursor + STREET_MARGIN;
+  blocks.forEach((block, i) => {
+    block.pavementFrom = i === 0 ? 0 : block.x - PAVEMENT_RETURN;
+    block.pavementTo = i === blocks.length - 1 ? totalWidth : block.x + block.width + PAVEMENT_RETURN;
   });
-  return { placements, totalWidth: cursor + STREET_MARGIN, skyline };
+
+  return { placements, blocks, totalWidth, skyline };
 }
 
 /**
@@ -103,7 +163,7 @@ function placeFurniture(placements: Placement[]): FurniturePlacement[] {
 export default function Street({ lots, timeOfDay, className, hrefForLot }: StreetProps) {
   const palette = TIME_PALETTES[timeOfDay];
   const stroke = palette.stroke;
-  const { placements, totalWidth } = layout(lots);
+  const { placements, blocks, totalWidth } = layout(lots);
   const furniture = placeFurniture(placements);
   const night = timeOfDay === 'night';
 
@@ -191,10 +251,72 @@ export default function Street({ lots, timeOfDay, className, hrefForLot }: Stree
         />
       ))}
 
-      <rect x={0} y={BASELINE} width={totalWidth} height={SIDEWALK_HEIGHT} fill={palette.sidewalk} />
-      <rect x={0} y={CURB_Y - 9} width={totalWidth} height={9} fill={curbFace} />
-      <line x1={0} y1={BASELINE} x2={totalWidth} y2={BASELINE} stroke={stroke} {...INK} />
-      <line x1={0} y1={CURB_Y} x2={totalWidth} y2={CURB_Y} stroke={stroke} {...INK} />
+      {/* Side streets running away between the blocks */}
+      {blocks.slice(0, -1).map((block, i) => {
+        const from = block.pavementTo;
+        const to = blocks[i + 1].pavementFrom;
+        return (
+          <Crossing
+            key={`crossing-${block.street}`}
+            x={from}
+            width={to - from}
+            baseline={BASELINE}
+            curbY={CURB_Y}
+            road={palette.road}
+            stroke={stroke}
+          />
+        );
+      })}
+
+      {/* Pavement, one run per block, with the kerb returning at each corner */}
+      {blocks.map((block) => {
+        const width = block.pavementTo - block.pavementFrom;
+        return (
+          <g key={`pavement-${block.street}`}>
+            <rect
+              x={block.pavementFrom}
+              y={BASELINE}
+              width={width}
+              height={SIDEWALK_HEIGHT}
+              fill={palette.sidewalk}
+            />
+            <rect x={block.pavementFrom} y={CURB_Y - 9} width={width} height={9} fill={curbFace} />
+            <line
+              x1={block.pavementFrom}
+              y1={BASELINE}
+              x2={block.pavementTo}
+              y2={BASELINE}
+              stroke={stroke}
+              {...INK}
+            />
+            <line
+              x1={block.pavementFrom}
+              y1={CURB_Y}
+              x2={block.pavementTo}
+              y2={CURB_Y}
+              stroke={stroke}
+              {...INK}
+            />
+            {/* Kerb returns — the vertical edges that make a corner a corner */}
+            <line
+              x1={block.pavementFrom}
+              y1={BASELINE}
+              x2={block.pavementFrom}
+              y2={CURB_Y}
+              stroke={stroke}
+              {...INK}
+            />
+            <line
+              x1={block.pavementTo}
+              y1={BASELINE}
+              x2={block.pavementTo}
+              y2={CURB_Y}
+              stroke={stroke}
+              {...INK}
+            />
+          </g>
+        );
+      })}
 
       {/* Buildings */}
       {placements.map(({ lot, x }) => (
@@ -214,6 +336,25 @@ export default function Street({ lots, timeOfDay, className, hrefForLot }: Stree
           href={hrefForLot?.(lot)}
         />
       ))}
+
+      {/* A sign on each corner, so a block's identity is visible */}
+      {blocks.map((block) => {
+        // Signs sit on the near corner of their block. The first block starts at
+        // the very edge of the scene, so the plate is nudged in far enough to
+        // stay whole rather than being clipped by the viewBox.
+        const half = streetSignWidth(block.street) / 2;
+        const x = Math.max(block.pavementFrom + 26, half + 10);
+        return (
+          <StreetSign
+            key={`sign-${block.street}`}
+            x={x}
+            baseline={FURNITURE_BASELINE}
+            name={block.street}
+            stroke={stroke}
+            wash={wash}
+          />
+        );
+      })}
 
       {/* Furniture sits in front of the facades, on the sidewalk */}
       {furniture.map((piece) => {

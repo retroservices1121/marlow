@@ -15,8 +15,10 @@ import { currentUser } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
+// Every block has corners now, not just Main Street, so the tier describes the
+// position and the address supplies the street.
 const TIER_LABEL: Record<string, string> = {
-  corner: 'Main Street corner',
+  corner: 'Corner plot',
   main: 'Main Street',
   side: 'Side street',
 };

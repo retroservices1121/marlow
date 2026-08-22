@@ -38,7 +38,10 @@ export type StreetDef = {
   main: boolean;
 };
 
-/** Main Street plus three named cross streets. 48 + 24 + 24 + 24 = 120. */
+/**
+ * Main Street plus three named cross streets. 48 + 24 + 24 + 24 = 120.
+ * Each is drawn as its own block, separated by an intersection.
+ */
 export const STREETS: readonly StreetDef[] = [
   { name: 'Main Street', count: 48, main: true },
   { name: 'Willow Lane', count: 24, main: false },
@@ -142,8 +145,12 @@ export function generateLots(streets: readonly StreetDef[] = STREETS): Lot[] {
     for (let i = 0; i < street.count; i++) {
       const number = FIRST_NUMBER + i * NUMBER_STEP;
       const address = `${number} ${street.name}`;
+      // Every block has two ends, and once intersections are drawn all eight of
+      // them read as corners. Pricing a lot above its neighbours only works if a
+      // visitor can see why, so the tier follows the drawing rather than the
+      // other way round.
       const isEnd = i === 0 || i === street.count - 1;
-      const tier: Tier = street.main ? (isEnd ? 'corner' : 'main') : 'side';
+      const tier: Tier = isEnd ? 'corner' : street.main ? 'main' : 'side';
       const buildingType = seedBuildingType(address, tier);
       const { facadeColor, accentColor } = seedColors(address);
 

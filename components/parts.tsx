@@ -602,3 +602,99 @@ export function Cloud({
 export function Star({ x, y, size }: { x: number; y: number; size: number }) {
   return <circle cx={x} cy={y} r={size} fill="#F2EFE0" stroke="none" />;
 }
+
+/* ====================================================================== */
+/* Street identity                                                        */
+/* ====================================================================== */
+
+export type StreetSignProps = {
+  x: number;
+  /** Sidewalk line the post stands on. */
+  baseline: number;
+  name: string;
+  stroke: string;
+  wash: (hex: string) => string;
+};
+
+/**
+ * A corner street sign. This is what makes a block's identity — and therefore
+ * its price — visible; without it Main Street and a side street are the same
+ * row of buildings.
+ */
+/** Plate width for a street name, so callers can keep it inside the scene. */
+export function streetSignWidth(name: string): number {
+  return Math.max(96, name.length * 9.4);
+}
+
+export function StreetSign({ x, baseline, name, stroke, wash }: StreetSignProps) {
+  const height = 96;
+  const plateWidth = streetSignWidth(name);
+  const plateHeight = 26;
+  const plate = wash('#3F5C77');
+
+  return (
+    <g transform={`translate(${x} ${baseline})`}>
+      <rect x={-4} y={-height} width={8} height={height} fill={wash('#4A4F58')} stroke={stroke} {...INK} />
+      <rect x={-13} y={-5} width={26} height={9} rx={2} fill={wash('#4A4F58')} stroke={stroke} {...INK} />
+      <g transform={`translate(${-plateWidth / 2} ${-height - plateHeight + 8})`}>
+        <rect
+          width={plateWidth}
+          height={plateHeight}
+          rx={CORNER_RADIUS}
+          fill={plate}
+          stroke={stroke}
+          {...INK}
+        />
+        <text
+          x={plateWidth / 2}
+          y={plateHeight / 2}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontFamily={SIGN_FONT}
+          fontWeight={600}
+          fontSize={13}
+          letterSpacing={0.8}
+          fill={inkOn(plate)}
+          stroke="none"
+        >
+          {name.toUpperCase()}
+        </text>
+      </g>
+    </g>
+  );
+}
+
+export type CrossingProps = {
+  /** Clear opening between two blocks. */
+  x: number;
+  width: number;
+  baseline: number;
+  curbY: number;
+  road: string;
+  stroke: string;
+};
+
+/**
+ * The side street running away between two blocks.
+ *
+ * A flat elevation cannot show depth with perspective, so the receding road is
+ * a plain tapered polygon — flat-filled like everything else. It is enough to
+ * read the gap as a street rather than a missing building.
+ */
+export function Crossing({ x, width, baseline, curbY, road, stroke }: CrossingProps) {
+  const depth = 76;
+  const taper = Math.min(38, width * 0.28);
+  return (
+    <g transform={`translate(${x} 0)`}>
+      {/* Ground plane of the crossing, where the pavement would otherwise run */}
+      <rect x={0} y={baseline} width={width} height={curbY - baseline} fill={road} />
+      {/* The street receding out of view */}
+      <polygon
+        points={`0,${baseline} ${width},${baseline} ${width - taper},${baseline - depth} ${taper},${baseline - depth}`}
+        fill={shade(road, 0.16)}
+        stroke={stroke}
+        {...INK}
+      />
+    </g>
+  );
+}

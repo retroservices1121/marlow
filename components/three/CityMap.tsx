@@ -19,7 +19,8 @@ import * as THREE from 'three';
 import type { OwnedLot } from '@/lib/inventory';
 import { planCity, type PlannedLot } from '@/lib/cityplan';
 import { DISTRICTS } from '@/lib/lots';
-import { TIME_PALETTES, mixHex, shade, type TimeOfDay } from '@/lib/palette';
+import { TIME_PALETTES, shade, type TimeOfDay } from '@/lib/palette';
+import LotPreview from './LotPreview';
 
 /*
  * An empty plot has to be clearly not-ground and clearly not-a-shop. Pale and
@@ -72,6 +73,12 @@ function Buildings({
 
     instanced.instanceMatrix.needsUpdate = true;
     if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true;
+    /*
+     * Raycasting and frustum culling both test the instanced mesh's bounding
+     * sphere before looking at any instance. Left at the unit box the geometry
+     * was built from, every pointer ray misses the whole city.
+     */
+    instanced.computeBoundingSphere();
   }, [planned, palette]);
 
   return (
@@ -244,9 +251,13 @@ export default function CityMap({
   const palette = TIME_PALETTES[timeOfDay];
   const [hover, setHover] = useState<Hover>(null);
 
-  const select = useCallback((lot: OwnedLot) => {
-    window.location.href = `/lots/${encodeURIComponent(lot.address)}`;
-  }, []);
+  const [selected, setSelected] = useState<OwnedLot | null>(null);
+  /*
+   * Clicking shows the building rather than leaving for its page. A visitor
+   * deciding whether to buy needs to see the shopfront, and pushing them out of
+   * the map to find that out loses the thing the map is for.
+   */
+  const select = useCallback((lot: OwnedLot) => setSelected(lot), []);
 
   const reach = Math.max(plan.width, plan.depth);
 
@@ -281,7 +292,9 @@ export default function CityMap({
         <MapControls plan={plan} />
       </Canvas>
 
-      {hover && (
+      {selected && <LotPreview lot={selected} onClose={() => setSelected(null)} />}
+
+      {hover && !selected && (
         <div
           className="mw-map-tip"
           style={{ left: hover.screenX + 14, top: hover.screenY + 14 }}

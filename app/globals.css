@@ -973,3 +973,57 @@ body {
   height: 100%;
   background: #e8544b;
 }
+
+/* ---- What you get, previewed from the map ------------------------------ */
+
+.mw-preview-panel {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: min(300px, calc(100% - 32px));
+  padding: 14px;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+  background: var(--mw-panel);
+}
+
+.mw-preview-panel .mw-card-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.mw-preview-portrait {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+}
+
+.mw-preview-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 12px 0;
+}
+
+.mw-preview-facts strong {
+  font-size: 15px;
+}
+
+.mw-preview-facts small {
+  color: #6b6b64;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .mw-preview-panel {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+  }
+}

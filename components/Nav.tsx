@@ -13,6 +13,9 @@ export default async function Nav() {
         Marlow
       </Link>
       <div className="mw-nav-right">
+        <Link href="/city" className="mw-nav-link">
+          The city
+        </Link>
         {user ? (
           <>
             <Link href="/lots" className="mw-nav-link">

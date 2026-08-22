@@ -355,6 +355,25 @@ check(
  * rect at the sign's own origin, so its x must fall inside a pavement run.
  */
 check(
+  '33c. every turning shows the street beyond it',
+  scenes.every((scene) => {
+    const turnings = scene.street.main ? junctionsOn(scene.street).length : 1;
+    const drawn = (scene.svg.match(/data-crossing=/g) || []).length;
+    return drawn === turnings;
+  }),
+);
+
+check(
+  '33d. a turning is not an empty gap',
+  scenes.every((scene) => {
+    // Road, far block, and a terrace either side, each with a roof: well over
+    // the single polygon an empty opening used to be.
+    const shapes = scene.svg.split('data-crossing=').slice(1);
+    return shapes.every((chunk) => (chunk.slice(0, 2600).match(/<(?:rect|polygon)/g) || []).length >= 8);
+  }),
+);
+
+check(
   '33b. no signpost stands in the road',
   scenes.every((scene) => {
     const posts = [...scene.svg.matchAll(/<g transform="translate\(([-\d.]+) 590\)"/g)].map((m) =>

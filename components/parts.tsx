@@ -17,6 +17,7 @@ import {
   mixHex,
   shade,
   tint,
+  type WindowsLit,
 } from '@/lib/palette';
 
 /** Uniform line style, applied to every drawn shape without exception. */
@@ -714,7 +715,11 @@ export type CrossingProps = {
   stroke: string;
   /** Sky, which the far end of the street fades toward. */
   sky: string;
-  /** Stable seed so the distant rooftops never shuffle between renders. */
+  /** Unlit glass, matching the buildings on the street you are standing in. */
+  glass: string;
+  /** Whether the windows down there are lit, on the same rule as everywhere else. */
+  windowsLit: WindowsLit;
+  /** Stable seed so the street down there never shuffles between renders. */
   seed: string;
 };
 
@@ -727,82 +732,162 @@ export type CrossingProps = {
  * without them the road is a wedge hanging in mid-air with sky either side, and
  * the turning reads as a hole rather than a street.
  *
+ * The terrace is drawn building by building, each with its own height and roof,
+ * because a flat-topped slab reads as a wall rather than as somewhere people
+ * live. Windows light up down there on the same rule as the street you are
+ * standing in, so a turning at night is not a dead grey slot.
+ *
  * Flat fills throughout. Depth comes from washing colours toward the sky, which
  * is a flat-illustration technique rather than a gradient.
  */
-export function Crossing({ x, width, baseline, curbY, road, stroke, sky, seed }: CrossingProps) {
+export function Crossing({
+  x,
+  width,
+  baseline,
+  curbY,
+  road,
+  stroke,
+  sky,
+  glass,
+  windowsLit,
+  seed,
+}: CrossingProps) {
   const depth = 96;
-  const taper = Math.min(46, width * 0.3);
+  /*
+   * The taper is how much horizontal run each side gets, so it decides whether
+   * the terrace reads as buildings or as slivers. At 0.3 of a 210-unit opening
+   * there were only 46 units a side to divide, and three buildings in that came
+   * out looking like chimneys.
+   */
+  const taper = Math.min(74, width * 0.34);
   const horizon = baseline - depth;
   const rng = seededRandom(`${seed}#crossing`);
 
-  const near = mixHex('#7A8590', sky, 0.32);
-  const far = mixHex('#7A8590', sky, 0.58);
-  const nearTop = baseline - 182;
-  const farTop = horizon - 78;
+  // Kept below the facades either side, so the turning recedes rather than looms.
+  const NEAR_HEIGHT = 152;
+  const FAR_HEIGHT = 72;
+  const SEGMENTS = 2;
 
-  /** One side of the street, receding toward the vanishing point. */
-  const wall = (side: -1 | 1) => {
-    const nearX = side < 0 ? 0 : width;
-    const farX = side < 0 ? taper : width - taper;
-    const at = (t: number) => ({
-      x: nearX + (farX - nearX) * t,
-      top: nearTop + (farTop - nearTop) * t,
-      ground: baseline + (horizon - baseline) * t,
-    });
-    return (
-      <g key={side}>
-        <polygon
-          points={`${nearX},${nearTop} ${farX},${farTop} ${farX},${horizon} ${nearX},${baseline}`}
-          fill={near}
-          stroke={stroke}
-          {...INK}
-        />
-        {[0.36, 0.68].map((t, i) => {
-          const d = at(t);
-          return <line key={i} x1={d.x} y1={d.top} x2={d.x} y2={d.ground} stroke={stroke} {...INK} />;
-        })}
-      </g>
-    );
+  const ground = (t: number) => baseline + (horizon - baseline) * t;
+  const storeyHeight = (t: number) => NEAR_HEIGHT + (FAR_HEIGHT - NEAR_HEIGHT) * t;
+  /** Further away means more air in between, so more sky mixed in. */
+  const wash = (t: number) => mixHex('#7A8590', sky, 0.3 + t * 0.3);
+
+  const litWindow = (): boolean => {
+    if (windowsLit === 'all') return true;
+    if (windowsLit === 'partial') return rng.chance(0.5);
+    return false;
   };
 
-  /* The far end, closing the view. */
-  const backHeight = 54;
+  /** One side of the street, as a run of buildings receding to the vanishing point. */
+  const terrace = (side: -1 | 1) => {
+    const nearX = side < 0 ? 0 : width;
+    const farX = side < 0 ? taper : width - taper;
+    const at = (t: number) => nearX + (farX - nearX) * t;
+
+    const buildings = [];
+    for (let i = 0; i < SEGMENTS; i++) {
+      const t0 = i / SEGMENTS;
+      const t1 = (i + 1) / SEGMENTS;
+      const lift = rng.range(0.78, 1.14);
+      const top0 = ground(t0) - storeyHeight(t0) * lift;
+      const top1 = ground(t1) - storeyHeight(t1) * lift;
+      const fill = wash((t0 + t1) / 2);
+      const left = Math.min(at(t0), at(t1));
+      const right = Math.max(at(t0), at(t1));
+      const scale = 1 - (t0 + t1) / 2;
+
+      // A roof of its own, so the run has a skyline instead of a flat edge.
+      const peak = (10 + rng.range(0, 12)) * (0.5 + scale * 0.5);
+      const pitched = rng.chance(0.55);
+
+      const panes = [];
+      const paneWidth = Math.max(5, (right - left) * 0.2);
+      const paneHeight = Math.max(6, 16 * (0.45 + scale * 0.55));
+      const rows = 2;
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < 2; col++) {
+          const px = left + (right - left) * (0.22 + col * 0.4);
+          const topEdge = Math.max(top0, top1);
+          const py = topEdge + 14 + row * (paneHeight + 8);
+          if (py + paneHeight > ground(t1) - 6) continue;
+          panes.push(
+            <rect
+              key={`${row}-${col}`}
+              x={px}
+              y={py}
+              width={paneWidth}
+              height={paneHeight}
+              fill={litWindow() ? LIT_WINDOW : mixHex(glass, sky, 0.35)}
+              // No outline: at six units across a 3.5 stroke would swallow the
+              // pane whole, and a thinner one would break the uniform weight
+              // the whole town is drawn with.
+              stroke="none"
+            />,
+          );
+        }
+      }
+
+      buildings.push(
+        <g key={i}>
+          {pitched ? (
+            <polygon
+              points={`${left - 3},${Math.min(top0, top1)} ${(left + right) / 2},${Math.min(top0, top1) - peak} ${right + 3},${Math.min(top0, top1)}`}
+              fill={shade(fill, 0.16)}
+              stroke={stroke}
+              {...INK}
+            />
+          ) : (
+            <rect
+              x={left - 3}
+              y={Math.min(top0, top1) - peak * 0.4}
+              width={right - left + 6}
+              height={peak * 0.4}
+              fill={shade(fill, 0.16)}
+              stroke={stroke}
+              {...INK}
+            />
+          )}
+          <polygon
+            points={`${at(t0)},${top0} ${at(t1)},${top1} ${at(t1)},${ground(t1)} ${at(t0)},${ground(t0)}`}
+            fill={fill}
+            stroke={stroke}
+            {...INK}
+          />
+          {panes}
+        </g>,
+      );
+    }
+    return <g key={side}>{buildings}</g>;
+  };
+
+  /*
+   * The far end, closing the view. Deliberately the plainest thing here: it
+   * sits behind two pitched terraces, and giving it a roofline of its own
+   * turned the top of the turning into saw-teeth.
+   */
+  const backHeight = 46;
   const backTop = horizon - backHeight;
   const backWidth = width - taper * 2;
-  const roofs = [0, 1, 2].map((i) => {
-    const segment = backWidth / 3;
-    const left = taper + segment * i;
-    const peak = 9 + rng.range(0, 8);
-    return (
-      <polygon
-        key={i}
-        points={`${left},${backTop} ${left + segment / 2},${backTop - peak} ${left + segment},${backTop}`}
-        fill={shade(far, 0.12)}
-        stroke={stroke}
-        {...INK}
-      />
-    );
-  });
+  const backFill = wash(1);
 
   return (
-    <g transform={`translate(${x} 0)`}>
+    <g transform={`translate(${x} 0)`} data-crossing={seed}>
       {/* Ground plane of the crossing, where the pavement would otherwise run */}
       <rect x={0} y={baseline} width={width} height={curbY - baseline} fill={road} />
 
       {/* Far end first, then the sides in front of it */}
-      {roofs}
       <rect
         x={taper}
         y={backTop}
         width={backWidth}
         height={backHeight}
-        fill={far}
+        fill={backFill}
         stroke={stroke}
         {...INK}
       />
-      {wall(-1)}
-      {wall(1)}
+      {terrace(-1)}
+      {terrace(1)}
 
       {/* The road running back between them */}
       <polygon

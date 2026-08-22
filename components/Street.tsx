@@ -391,6 +391,8 @@ export default function Street({
           road={palette.road}
           stroke={stroke}
           sky={palette.sky}
+          glass={palette.glass}
+          windowsLit={palette.windowsLit}
           seed={gap.to.slug}
         />
       ))}

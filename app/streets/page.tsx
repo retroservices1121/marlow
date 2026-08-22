@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { buildInventory } from '@/lib/inventory';
 import { getOverrides } from '@/lib/lot-store';
 import { currentUser } from '@/lib/session';
-import { STREETS } from '@/lib/lots';
+import { DISTRICTS } from '@/lib/lots';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,15 +23,21 @@ export default async function StreetsPage() {
     <main className="mw-page mw-narrow">
       <h1 className="mw-title">Every address</h1>
       <p className="mw-sub">
-        {lots.length} lots across {STREETS.length} streets. {forSale} still for sale.{' '}
+        {lots.length} lots across {DISTRICTS.length} districts. {forSale} still for sale.{' '}
         <Link href="/demo">Walk the street instead</Link>.
       </p>
 
-      {STREETS.map((street) => {
+      {DISTRICTS.map((district) => (
+        <section key={district.slug}>
+          <h2 className="mw-district-heading">
+            {district.name}
+            <small>{district.standing}</small>
+          </h2>
+          {district.streets.map((street) => {
         const run = lots.filter((l) => l.street === street.name);
         const available = run.filter((l) => !l.claimed).length;
-        return (
-          <section key={street.name} className="mw-street-section">
+          return (
+            <section key={street.name} className="mw-street-section">
             <h2 className="mw-street-heading">
               {street.name}
               <small>
@@ -65,9 +71,11 @@ export default async function StreetsPage() {
                 );
               })}
             </ul>
-          </section>
-        );
-      })}
+            </section>
+          );
+        })}
+        </section>
+      ))}
     </main>
   );
 }

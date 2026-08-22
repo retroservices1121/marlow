@@ -905,3 +905,22 @@ body {
   background: #7ec8e3;
   font-weight: 600;
 }
+
+.mw-district-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 36px 0 4px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.mw-district-heading small {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 2px solid var(--mw-ink);
+  border-radius: 2px;
+  background: #f5ce3e;
+}

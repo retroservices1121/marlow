@@ -4,8 +4,10 @@ import Street from '@/components/Street';
 import Building from '@/components/Building';
 import {
   STREETS,
+  DISTRICTS,
   cornerIndices,
   generateLots,
+  parentStreet,
   junctionsOn,
   type Lot,
 } from '@/lib/lots';
@@ -102,6 +104,7 @@ const inserted: Lot[] = [
     address: '999 Main Street',
     number: 999,
     street: 'Main Street',
+    district: 'downtown',
     tier: 'main',
     status: 'sold',
     buildingType: 'storefront',
@@ -222,7 +225,26 @@ check('17. no repeated sign within six neighbours', nameClash === '', nameClash)
 /* Street composition. */
 const mainLots = lots.filter((l) => l.street === 'Main Street');
 const corners = lots.filter((l) => l.tier === 'corner');
-check('18. 120 lots over four streets', lots.length === 120 && new Set(lots.map((l) => l.street)).size === 4);
+check(
+  '18. the whole city generates',
+  lots.length === STREETS.reduce((n, s) => n + s.count, 0) &&
+    new Set(lots.map((l) => l.street)).size === STREETS.length,
+  `${lots.length} lots over ${new Set(lots.map((l) => l.street)).size} streets`,
+);
+check(
+  '18a. street names are unique city-wide, because addresses carry no district',
+  new Set(STREETS.map((s) => s.name)).size === STREETS.length &&
+    new Set(STREETS.map((s) => s.slug)).size === STREETS.length,
+);
+check('18b. every address is unique', new Set(lots.map((l) => l.address)).size === lots.length);
+check(
+  '18c. every street belongs to a district that exists',
+  STREETS.every((s) => DISTRICTS.some((d) => d.slug === s.district)),
+);
+check(
+  '18d. a side street joins the spine in its own district',
+  STREETS.filter((s) => !s.main).every((s) => parentStreet(s)?.district === s.district),
+);
 check(
   '19. even numbers from 100, step 2',
   lots.every((l) => l.number % 2 === 0) && mainLots[0].number === 100 && mainLots[1].number === 102,
@@ -286,7 +308,8 @@ check(
 check('25. uniform stroke width', new Set((svg.match(/stroke-width="[^"]*"/g) || [])).size === 2, [...new Set(svg.match(/stroke-width="[^"]*"/g) || [])].join(' '));
 check(
   '26. every building is focusable',
-  scenes.reduce((n, scene) => n + (scene.svg.match(/tabindex="0"/g) || []).length, 0) === 120,
+  scenes.reduce((n, scene) => n + (scene.svg.match(/tabindex="0"/g) || []).length, 0) ===
+    scenes.reduce((n, scene) => n + scene.lots.length, 0),
 );
 check('27. night lights windows', renderStreet(lots, 'night').includes('#FFD98A'));
 check('28. day lights none', !renderStreet(lots, 'day').includes('#FFD98A'));
@@ -318,21 +341,22 @@ for (const scene of scenes) {
 check('30. buildings share walls within a street', allContiguous);
 
 check(
-  '31. Main Street has a turning into every side street',
-  (() => {
-    const main = scenes.find((scene) => scene.street.main);
-    if (!main) return false;
-    return STREETS.filter((street) => !street.main).every((street) =>
-      main.svg.includes(`data-turning="${street.slug}"`),
-    );
-  })(),
+  '31. every spine has a turning into each of its own side streets',
+  scenes
+    .filter((scene) => scene.street.main)
+    .every((scene) =>
+      junctionsOn(scene.street).every((j) => scene.svg.includes(`data-turning="${j.street.slug}"`)),
+    ),
 );
 
 check(
-  '32. every side street has a way back to Main Street',
+  '32. every side street has a way back to its own spine',
   scenes
     .filter((scene) => !scene.street.main)
-    .every((scene) => scene.svg.includes('data-turning="main-street"')),
+    .every((scene) => {
+      const spine = parentStreet(scene.street);
+      return spine !== undefined && scene.svg.includes(`data-turning="${spine.slug}"`);
+    }),
 );
 
 check(
@@ -345,8 +369,8 @@ check(
   scenes.every((scene) => {
     const turnings = scene.street.main
       ? junctionsOn(scene.street).map((j) => j.street.name)
-      : ['Main Street'];
-    return turnings.every((name) => scene.svg.includes(name.toUpperCase()));
+      : [parentStreet(scene.street)?.name ?? ''];
+    return turnings.every((name) => name !== '' && scene.svg.includes(name.toUpperCase()));
   }),
 );
 
@@ -388,8 +412,11 @@ check(
 );
 
 check(
-  '34. a side street is a fraction of the old single row',
-  scenes.filter((s) => !s.street.main).every((s) => s.lots.length === 24),
+  '34. no street is longer than its own spine',
+  DISTRICTS.every((district) => {
+    const spine = district.streets.find((s) => s.main);
+    return spine !== undefined && district.streets.every((s) => s.count <= spine.count);
+  }),
 );
 console.log(`all four streets: ${totalUnits} units`);
 

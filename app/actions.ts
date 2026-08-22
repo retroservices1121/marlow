@@ -10,8 +10,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { authenticate, createSession, registerUser } from '@/lib/auth';
-import { clearSession, currentUser, setSessionCookie } from '@/lib/session';
+import { currentUser } from '@/lib/session';
 import { claimLot, deleteLogo, releaseLot, saveLogo, saveLotChoices, saveStoreProfile } from '@/lib/lot-store';
 import { SOCIAL_PLATFORMS } from '@/lib/store-profile';
 
@@ -25,25 +24,6 @@ const str = (data: FormData, key: string): string => {
 /** Where to send someone after signing in — same-origin paths only. */
 function safeRedirect(target: string): string {
   return target.startsWith('/') && !target.startsWith('//') ? target : '/demo';
-}
-
-export async function registerAction(_prev: ActionState, data: FormData): Promise<ActionState> {
-  const result = await registerUser(str(data, 'email'), str(data, 'password'));
-  if (!result.ok) return { error: result.error };
-  await setSessionCookie(await createSession(result.user.id));
-  redirect(safeRedirect(str(data, 'next') || '/lots'));
-}
-
-export async function loginAction(_prev: ActionState, data: FormData): Promise<ActionState> {
-  const result = await authenticate(str(data, 'email'), str(data, 'password'));
-  if (!result.ok) return { error: result.error };
-  await setSessionCookie(await createSession(result.user.id));
-  redirect(safeRedirect(str(data, 'next') || '/lots'));
-}
-
-export async function logoutAction(): Promise<void> {
-  await clearSession();
-  redirect('/demo');
 }
 
 export async function claimAction(_prev: ActionState, data: FormData): Promise<ActionState> {

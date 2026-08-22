@@ -13,18 +13,9 @@ const RUN = Date.now().toString(36);
 const ADA = `ada+${RUN}@example.com`;
 const BOB = `bob+${RUN}@example.com`;
 
+import { randomUUID } from 'crypto';
 import { getDb, driverName } from '@/lib/db';
 import { loadMigrations, migrate, pendingMigrations } from '@/lib/migrate';
-import {
-  authenticate,
-  createSession,
-  destroySession,
-  hashPassword,
-  purgeExpiredSessions,
-  registerUser,
-  userForToken,
-  verifyPassword,
-} from '@/lib/auth';
 import {
   FREE_LOTS_PER_ACCOUNT,
   claimLot,
@@ -61,10 +52,27 @@ async function main() {
   console.log(`driver: ${driverName()}`);
   const db = await getDb();
 
-  const baseline = await db.one<{ users: string; lots: string; sessions: string }>(
+  /**
+   * An account, made the way Clerk's sync makes one.
+   *
+   * Registration, password hashing and session expiry all moved to Clerk with
+   * migration 005, so there is nothing of ours left to test there. What still
+   * has to hold is everything downstream: who owns what, and what happens to a
+   * lot bought before its buyer had an account.
+   */
+  const makeUser = async (email: string) => {
+    const id = randomUUID();
+    await db.query('insert into users (id, clerk_id, email) values ($1, $2, $3)', [
+      id,
+      `clerk_${id}`,
+      email,
+    ]);
+    return { id, email };
+  };
+
+  const baseline = await db.one<{ users: string; lots: string }>(
     `select (select count(*) from users) as users,
-            (select count(*) from lots) as lots,
-            (select count(*) from sessions) as sessions`,
+            (select count(*) from lots)  as lots`,
   );
 
   /* ---- Schema ---- */
@@ -72,8 +80,8 @@ async function main() {
     `select table_name from information_schema.tables where table_schema = 'public' order by table_name`,
   );
   check(
-    '1. schema creates users, sessions, lots',
-    ['lots', 'sessions', 'users'].every((t) => tables.some((r) => r.table_name === t)),
+    '1. schema creates users, lots, lot_logos',
+    ['lot_logos', 'lots', 'users'].every((t) => tables.some((r) => r.table_name === t)),
     tables.map((t) => t.table_name).join(','),
   );
 
@@ -92,68 +100,33 @@ async function main() {
     })(),
   );
 
-  /* ---- Passwords ---- */
-  const hash = await hashPassword('correct horse battery');
-  check('2. hash does not contain the password', !hash.includes('correct horse battery'));
-  check('3. correct password verifies', await verifyPassword('correct horse battery', hash));
-  check('4. wrong password rejected', !(await verifyPassword('correct horse batteryy', hash)));
-  check('5. two hashes of one password differ (salted)', hash !== (await hashPassword('correct horse battery')));
-  check('6. garbage hash rejected, not thrown', !(await verifyPassword('x', 'not-a-hash')));
-
-  /* ---- Registration ---- */
-  const reg = await registerUser(ADA.replace('ada', 'Ada'), 'hunter2hunter2');
-  check('7. registration succeeds', reg.ok);
-  check('8. email is normalised', reg.ok && reg.user.email === ADA);
-
-  const dupe = await registerUser(ADA.toUpperCase(), 'anotherpassword');
-  check('9. duplicate email rejected case-insensitively', !dupe.ok, dupe.ok ? 'accepted' : '');
-
-  const weak = await registerUser(BOB, 'short');
-  check('10. short password rejected', !weak.ok);
-  const bad = await registerUser('not-an-email', 'longenoughpassword');
-  check('11. invalid email rejected', !bad.ok);
-
-  /* ---- Authentication ---- */
-  const good = await authenticate(ADA, 'hunter2hunter2');
-  check('12. correct credentials authenticate', good.ok);
-  const wrongPass = await authenticate(ADA, 'wrong');
-  const noUser = await authenticate(`nobody+${RUN}@example.com`, 'wrong');
-  check('13. wrong password refused', !wrongPass.ok);
+  /* ---- Accounts ---- */
+  const reg = { ok: true as const, user: await makeUser(ADA) };
+  check('2. an account can be created', reg.user.id.length > 0);
+  check('3. its email is stored for matching a purchase', reg.user.email === ADA);
   check(
-    '14. unknown user and wrong password give the same message',
-    !wrongPass.ok && !noUser.ok && errOf(wrongPass) === errOf(noUser),
+    '4. the password and session tables are gone',
+    (await db.query(
+      `select table_name from information_schema.tables
+        where table_schema = 'public' and table_name = 'sessions'`,
+    )).length === 0,
+  );
+  check(
+    '5. no password hash column survives',
+    (await db.query(
+      `select column_name from information_schema.columns
+        where table_name = 'users' and column_name = 'password_hash'`,
+    )).length === 0,
+  );
+  check(
+    '6. every account is keyed to a Clerk id',
+    (await db.query(`select clerk_id from users where clerk_id is null`)).length === 0,
   );
 
-  if (!reg.ok) throw new Error('cannot continue without a user');
   const ada = reg.user;
 
-  /* ---- Sessions ---- */
-  const token = await createSession(ada.id);
-  const sessionUser = await userForToken(token);
-  check('15. session resolves to its user', sessionUser?.id === ada.id);
-  check('16. unknown token resolves to nobody', (await userForToken('made-up-token')) === null);
-  check('17. absent token resolves to nobody', (await userForToken(undefined)) === null);
-
-  const storedTokens = await db.query<{ token: string }>('select token from sessions');
-  check(
-    '18. raw token is never stored, only its digest',
-    storedTokens.every((r) => r.token !== token),
-  );
-
-  await db.query(`update sessions set expires_at = now() - interval '1 hour' where user_id = $1`, [
-    ada.id,
-  ]);
-  check('19. expired session resolves to nobody', (await userForToken(token)) === null);
-  check('20. expired sessions can be purged', (await purgeExpiredSessions()) > 0);
-
-  const live = await createSession(ada.id);
-  await destroySession(live);
-  check('21. logout deletes the session', (await userForToken(live)) === null);
-
   /* ---- Claiming ---- */
-  const bobReg = await registerUser(BOB, 'bobspassword1');
-  if (!bobReg.ok) throw new Error('bob should have registered');
-  const bob = bobReg.user;
+  const bob = await makeUser(BOB);
 
   const taken = new Set(
     (await db.query<{ address: string }>('select address from lots')).map((r) => r.address),
@@ -409,16 +382,14 @@ async function main() {
   ]);
   await db.query('delete from users where email like $1', [`%+${RUN}@example.com`]);
 
-  const after = await db.one<{ users: string; lots: string; sessions: string }>(
-    `select (select count(*) from users)    as users,
-            (select count(*) from lots)     as lots,
-            (select count(*) from sessions) as sessions`,
+  const after = await db.one<{ users: string; lots: string }>(
+    `select (select count(*) from users) as users,
+            (select count(*) from lots)  as lots`,
   );
   check(
     '50. the database is left exactly as it was found',
     Number(after?.users) === Number(baseline?.users) &&
-      Number(after?.lots) === Number(baseline?.lots) &&
-      Number(after?.sessions) === Number(baseline?.sessions),
+      Number(after?.lots) === Number(baseline?.lots),
     `before ${JSON.stringify(baseline)} after ${JSON.stringify(after)}`,
   );
 

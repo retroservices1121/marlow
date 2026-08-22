@@ -1,7 +1,12 @@
-/** Site header. A server component, so it reflects the real session, not a guess. */
+/**
+ * Site header.
+ *
+ * A server component, so it reflects the real session rather than a guess, and
+ * so the links are in the served HTML.
+ */
 
 import Link from 'next/link';
-import { logoutAction } from '@/app/actions';
+import { SignOutButton } from '@clerk/nextjs';
 import { currentUser } from '@/lib/session';
 
 export default async function Nav() {
@@ -9,7 +14,7 @@ export default async function Nav() {
 
   return (
     <nav className="mw-nav">
-      <Link href="/demo" className="mw-brand">
+      <Link href="/" className="mw-brand">
         Marlow
       </Link>
       <div className="mw-nav-right">
@@ -21,11 +26,11 @@ export default async function Nav() {
             <Link href="/lots" className="mw-nav-link">
               Your lots
             </Link>
-            <form action={logoutAction}>
-              <button type="submit" className="mw-chip mw-chip-small">
+            <SignOutButton redirectUrl="/">
+              <button type="button" className="mw-chip mw-chip-small">
                 Sign out
               </button>
-            </form>
+            </SignOutButton>
           </>
         ) : (
           <>

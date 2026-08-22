@@ -924,3 +924,52 @@ body {
   border-radius: 2px;
   background: #f5ce3e;
 }
+
+/* ---- City map ---------------------------------------------------------- */
+
+.mw-map-stage {
+  position: relative;
+  height: clamp(400px, 74vh, 900px);
+  border-top: 3px solid var(--mw-ink);
+  border-bottom: 3px solid var(--mw-ink);
+  cursor: grab;
+  touch-action: none;
+}
+
+.mw-map-stage:active {
+  cursor: grabbing;
+}
+
+.mw-map-tip {
+  position: absolute;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 11px;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+  background: var(--mw-panel);
+  font-size: 13px;
+  max-width: 260px;
+}
+
+.mw-map-tip small {
+  color: #6b6b64;
+}
+
+/* How full the city is, at a glance. */
+.mw-fill {
+  margin-top: 12px;
+  height: 16px;
+  max-width: 420px;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+  background: var(--mw-panel);
+  overflow: hidden;
+}
+
+.mw-fill span {
+  display: block;
+  height: 100%;
+  background: #e8544b;
+}

@@ -1,8 +1,11 @@
 /**
  * What a lot costs.
  *
- * The ends were set deliberately: $200 for the best address in the city, $15
- * for the cheapest. Everything between is a business decision, so it is written
+ * The ends were set deliberately: $100 for the best address in the city, $15
+ * for the cheapest. The top was $200 at first, which asked somebody to trust an
+ * unproven town with a week's lunch money before a single shop had opened on
+ * it. A ceiling can go back up once the streets have people on them; a price
+ * nobody pays teaches you nothing. Everything between is a business decision, so it is written
  * as an explicit table rather than derived from multipliers — multipliers were
  * producing prices like $37.50, and nobody sets a price that way.
  *
@@ -30,9 +33,9 @@ export const CURRENCY = 'USD';
  * every column must fall top to bottom, and there are checks that say so.
  */
 const PRICES: Record<Standing, Record<Tier, number>> = {
-  downtown: { corner: 20_000, main: 12_000, side: 7_500 },
-  central: { corner: 10_000, main: 6_000, side: 4_000 },
-  outer: { corner: 4_000, main: 2_500, side: 1_500 },
+  downtown: { corner: 10_000, main: 6_000, side: 4_000 },
+  central: { corner: 5_000, main: 3_000, side: 2_000 },
+  outer: { corner: 2_500, main: 2_000, side: 1_500 },
 };
 
 export type Priced = { tier: Tier; district: string };

@@ -31,24 +31,36 @@ const OK = () => new Response(null, { status: 204 });
 const TOLERANCE = 5 * 60;
 
 /**
- * The signing key, as bytes.
+ * The signing key, as bytes — every reading of the secret that is in use.
  *
- * Standard Webhooks secrets are base64 behind a `whsec_` prefix, but Polar has
- * shown them both ways. Both readings are derived from the same secret, so
- * accepting either costs nothing an attacker could use — they would still need
- * the secret — and spares a silent, total verification failure that looks
- * exactly like a wrong URL.
+ * This cost a real customer their lot. Standard Webhooks says the secret is
+ * base64 behind a `whsec_` prefix, so the first version stripped the prefix and
+ * tried the bytes both ways. Polar signs with something else, and every genuine
+ * delivery was rejected while my own hand-rolled test signatures passed — which
+ * is exactly the shape of bug that testing against yourself cannot find.
+ *
+ * So all four readings are tried and whichever verifies wins. This gives away
+ * nothing: an attacker still has to possess the secret, and which encoding of
+ * it they possess was never the thing keeping them out. A webhook that
+ * *quietly* refuses real money is far more dangerous than one that accepts a
+ * correctly-signed request under a spelling it did not expect.
+ *
+ * `matchedKey` records which one worked so the mystery is answered in the logs
+ * rather than guessed at again later.
  */
-function candidateKeys(secret: string): Buffer[] {
-  const bare = secret.startsWith('whsec_') ? secret.slice(6) : secret;
-  const keys = [Buffer.from(bare, 'utf8')];
-  try {
-    const decoded = Buffer.from(bare, 'base64');
-    if (decoded.length > 0) keys.push(decoded);
-  } catch {
-    /* not base64; the utf8 reading stands alone */
-  }
-  return keys;
+export const KEY_READINGS = ['raw', 'raw-bare', 'base64', 'base64-bare'] as const;
+export type KeyReading = (typeof KEY_READINGS)[number];
+
+function candidateKeys(secret: string): { reading: KeyReading; key: Buffer }[] {
+  const full = secret.trim();
+  const bare = full.startsWith('whsec_') ? full.slice(6) : full;
+  const all: { reading: KeyReading; key: Buffer }[] = [
+    { reading: 'raw', key: Buffer.from(full, 'utf8') },
+    { reading: 'raw-bare', key: Buffer.from(bare, 'utf8') },
+    { reading: 'base64', key: Buffer.from(full, 'base64') },
+    { reading: 'base64-bare', key: Buffer.from(bare, 'base64') },
+  ];
+  return all.filter((c) => c.key.length > 0);
 }
 
 function signaturesMatch(expected: Buffer, header: string): boolean {
@@ -63,11 +75,19 @@ function signaturesMatch(expected: Buffer, header: string): boolean {
   return false;
 }
 
-function verify(secret: string, id: string, timestamp: string, body: string, header: string) {
+/** Which reading of the secret verified, or null if none did. */
+function verify(
+  secret: string,
+  id: string,
+  timestamp: string,
+  body: string,
+  header: string,
+): KeyReading | null {
   const signed = `${id}.${timestamp}.${body}`;
-  return candidateKeys(secret).some((key) =>
-    signaturesMatch(createHmac('sha256', key).update(signed).digest(), header),
-  );
+  for (const { reading, key } of candidateKeys(secret)) {
+    if (signaturesMatch(createHmac('sha256', key).update(signed).digest(), header)) return reading;
+  }
+  return null;
 }
 
 /* ---- Finding the two things that matter in the payload ---- */
@@ -142,8 +162,11 @@ export async function POST(req: Request) {
   }
 
   const body = await req.text();
-  if (!verify(secret, id, timestamp, body, signature)) {
-    console.error('[polar] signature did not verify; delivery rejected');
+  const reading = verify(secret, id, timestamp, body, signature);
+  if (!reading) {
+    // The id is logged so a rejected delivery can be found in Polar's dashboard
+    // and redelivered once the cause is understood.
+    console.error(`[polar] signature did not verify; delivery ${id} rejected`);
     return new Response('bad signature', { status: 401 });
   }
 
@@ -185,6 +208,6 @@ export async function POST(req: Request) {
     return OK();
   }
 
-  console.log(`[polar] ${address} sold to ${email} (${type})`);
+  console.log(`[polar] ${address} sold to ${email} (${type}, key=${reading})`);
   return OK();
 }

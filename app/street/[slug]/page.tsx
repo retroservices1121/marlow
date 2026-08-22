@@ -9,9 +9,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import StreetView from '@/components/StreetView';
+import MarlowIntro from '@/components/MarlowIntro';
 import { buildInventory } from '@/lib/inventory';
 import { getOverrides, isRealAddress, logoHash } from '@/lib/lot-store';
-import { STREETS, junctionsOn, parentStreet, streetBySlug } from '@/lib/lots';
+import { DISTRICTS, STREETS, junctionsOn, parentStreet, streetBySlug } from '@/lib/lots';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,9 @@ export default async function StreetPage({
   if (!street) notFound();
 
   const overrides = await getOverrides();
-  const lots = buildInventory(overrides).filter((l) => l.street === street.name);
+  const everywhere = buildInventory(overrides);
+  const lots = everywhere.filter((l) => l.street === street.name);
+  const takenEverywhere = everywhere.filter((l) => l.claimed).length;
 
   // Only honour an address on this street, so a stray link lands somewhere real.
   const focusAddress =
@@ -60,7 +63,19 @@ export default async function StreetPage({
         </p>
       </header>
 
-      <StreetView lots={lots} focusAddress={focusAddress} focusLogoUrl={focusLogoUrl} />
+      <StreetView
+        lots={lots}
+        focusAddress={focusAddress}
+        focusLogoUrl={focusLogoUrl}
+        overlay={
+          <MarlowIntro
+            total={everywhere.length}
+            taken={takenEverywhere}
+            districts={DISTRICTS.length}
+            hint="Drag the street or hold ← → to walk · click a shopfront to see it"
+          />
+        }
+      />
 
       <p className="mw-meta">
         {back && (

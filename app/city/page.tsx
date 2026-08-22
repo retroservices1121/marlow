@@ -8,7 +8,7 @@
 
 import Link from 'next/link';
 import CityLoader from '@/components/three/CityLoader';
-import CityIntro from '@/components/CityIntro';
+import MarlowIntro from '@/components/MarlowIntro';
 import { buildInventory } from '@/lib/inventory';
 import { getOverrides } from '@/lib/lot-store';
 import { DISTRICTS } from '@/lib/lots';
@@ -28,7 +28,7 @@ export default async function CityPage() {
       </h1>
 
       <CityLoader lots={lots}>
-        <CityIntro total={lots.length} taken={taken} districts={DISTRICTS.length} />
+        <MarlowIntro total={lots.length} taken={taken} districts={DISTRICTS.length} />
       </CityLoader>
 
       <p className="mw-meta">

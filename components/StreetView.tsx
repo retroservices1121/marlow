@@ -16,7 +16,7 @@
  * yourself along the street would keep navigating away.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Street from './Street';
 import type { OwnedLot } from '@/lib/inventory';
 import type { Lot, StreetDef } from '@/lib/lots';
@@ -34,10 +34,13 @@ export default function StreetView({
   lots,
   focusAddress = null,
   focusLogoUrl = null,
+  overlay,
 }: {
   lots: OwnedLot[];
   focusAddress?: string | null;
   focusLogoUrl?: string | null;
+  /** Rendered over the street — the pitch, when somebody arrives here first. */
+  overlay?: ReactNode;
 }) {
   const [mode, setMode] = useState<Mode>('auto');
   const [clockTime, setClockTime] = useState<TimeOfDay>(SSR_TIME);
@@ -217,6 +220,7 @@ export default function StreetView({
             hrefForStreet={(street: StreetDef) => `/street/${street.slug}`}
           />
         </div>
+        {overlay}
       </div>
 
       <p className="mw-walk-hint">

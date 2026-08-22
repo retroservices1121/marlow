@@ -1,7 +1,11 @@
 'use client';
 
 /**
- * The pitch, as a dialog over the city.
+ * The pitch, as a dialog over whatever it is placed on.
+ *
+ * Shown over the city map and over a street, because either can be the first
+ * thing somebody sees and the argument for the place should not depend on
+ * which door they came through.
  *
  * A separate page explaining Marlow would be weaker than Marlow explaining
  * itself: the thing being sold is behind this, filling up, while somebody reads
@@ -20,14 +24,17 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export default function CityIntro({
+export default function MarlowIntro({
   total,
   taken,
   districts,
+  hint = 'Drag to move · pinch or +/− to zoom · tap a building to see it',
 }: {
   total: number;
   taken: number;
   districts: number;
+  /** How to get about whatever this is sitting on. */
+  hint?: string;
 }) {
   const [open, setOpen] = useState(true);
   const close = useRef<HTMLButtonElement>(null);
@@ -118,9 +125,7 @@ export default function CityIntro({
           </button>
         </div>
 
-        <p className="mw-intro-hint">
-          Drag to move · pinch or +/− to zoom · tap a building to see it
-        </p>
+        <p className="mw-intro-hint">{hint}</p>
       </div>
     </div>
   );

@@ -289,6 +289,14 @@ check(
   priceRange().every((row) => Number.isInteger(row.cents)),
 );
 check(
+  '21e2. the ends of the price list are the ones that were set',
+  (() => {
+    const rows = priceRange();
+    return rows[0].cents === 1_500 && rows[rows.length - 1].cents === 20_000;
+  })(),
+  priceRange().map((r) => r.cents).join(),
+);
+check(
   '21e. the cheapest lot is a side street in an outer district',
   (() => {
     const cheapest = priceRange()[0];

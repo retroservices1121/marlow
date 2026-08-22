@@ -882,3 +882,26 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- 3D prototype ------------------------------------------------------ */
+
+.mw-lab-stage {
+  height: clamp(360px, 68vh, 820px);
+  border-top: 3px solid var(--mw-ink);
+  border-bottom: 3px solid var(--mw-ink);
+  cursor: grab;
+  touch-action: none;
+}
+
+.mw-lab-stage:active {
+  cursor: grabbing;
+}
+
+.mw-lab-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: #7ec8e3;
+  font-weight: 600;
+}

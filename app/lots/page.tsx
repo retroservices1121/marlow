@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { buildInventory } from '@/lib/inventory';
 import { getOverrides } from '@/lib/lot-store';
+import { addressSlug } from '@/lib/lots';
 import { currentUser } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -33,7 +34,7 @@ export default async function LotsPage() {
         <ul className="mw-lot-list">
           {mine.map((lot) => (
             <li key={lot.address}>
-              <Link href={`/lots/${encodeURIComponent(lot.address)}`}>
+              <Link href={`/${addressSlug(lot.address)}`}>
                 <span
                   className="mw-lot-chip"
                   style={{ background: lot.facadeColor, borderColor: lot.accentColor }}

@@ -112,6 +112,55 @@ export async function purchaseLotForEmail(
 }
 
 /**
+ * Moves a lot to somebody else's email, for a giveaway.
+ *
+ * Reserve a batch under your own address so nobody can buy them, then hand each
+ * one over as you pick a winner. Unlike `purchaseLotForEmail` this deliberately
+ * overwrites who holds the lot — that is the whole job — so it refuses outright
+ * when somebody has already signed in and claimed it. Taking a shop off an
+ * owner who is using it should never be a typo away.
+ *
+ * `owner_id` is cleared so the new holder's sign-in links it to them the same
+ * way a purchase does. Whatever was built here stays; the new owner can change
+ * all of it.
+ */
+export async function transferLot(
+  address: string,
+  email: string,
+  force = false,
+): Promise<StoreResult<LotOverride>> {
+  if (!isRealAddress(address)) return { ok: false, error: 'No such address in Marlow.' };
+  const holder = email.trim().toLowerCase();
+  if (!holder.includes('@')) return { ok: false, error: 'An email is required.' };
+
+  const existing = await getOverride(address);
+  if (existing?.ownerId && !force) {
+    return {
+      ok: false,
+      error: `${address} is claimed by a signed-in owner. Pass --force to take it anyway.`,
+    };
+  }
+
+  const db = await getDb();
+  await db.query(
+    `insert into lots (address, owner_email, status, purchased_at, acquired_via)
+          values ($1, $2, 'sold', now(), 'grant')
+     on conflict (address) do update
+            set owner_email = excluded.owner_email,
+                owner_id = null,
+                status = 'sold',
+                purchased_at = coalesce(lots.purchased_at, now()),
+                updated_at = now()`,
+    [address, holder],
+  );
+
+  const stored = await getOverride(address);
+  return stored
+    ? { ok: true, value: stored }
+    : { ok: false, error: 'Could not record that transfer.' };
+}
+
+/**
  * Hands over every lot bought with this email to the account that has now
  * proved it owns the address.
  *

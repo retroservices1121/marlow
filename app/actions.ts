@@ -10,6 +10,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { addressSlug } from '@/lib/lots';
 import { currentUser } from '@/lib/session';
 import { claimLot, deleteLogo, releaseLot, saveLogo, saveLotChoices, saveStoreProfile } from '@/lib/lot-store';
 import { SOCIAL_PLATFORMS } from '@/lib/store-profile';
@@ -29,14 +30,14 @@ function safeRedirect(target: string): string {
 export async function claimAction(_prev: ActionState, data: FormData): Promise<ActionState> {
   const user = await currentUser();
   const address = str(data, 'address');
-  if (!user) redirect(`/login?next=${encodeURIComponent(`/lots/${encodeURIComponent(address)}`)}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(`/${addressSlug(address)}`)}`);
 
   const result = await claimLot(address, user.id);
   if (!result.ok) return { error: result.error };
 
   revalidatePath('/demo');
   revalidatePath('/lots');
-  redirect(`/lots/${encodeURIComponent(address)}`);
+  redirect(`/${addressSlug(address)}`);
 }
 
 export async function saveAction(_prev: ActionState, data: FormData): Promise<ActionState> {
@@ -85,7 +86,7 @@ export async function saveProfileAction(_prev: ActionState, data: FormData): Pro
   }
 
   revalidatePath('/demo');
-  revalidatePath(`/lots/${address}`);
+  revalidatePath(`/${addressSlug(address)}`);
   return { message: 'Saved. Your shop page is live.' };
 }
 

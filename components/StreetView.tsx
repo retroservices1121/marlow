@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Street from './Street';
 import type { OwnedLot } from '@/lib/inventory';
-import type { Lot, StreetDef } from '@/lib/lots';
+import { addressSlug, type Lot, type StreetDef } from '@/lib/lots';
 import { TIMES_OF_DAY, currentTimeOfDay, type TimeOfDay } from '@/lib/palette';
 
 type Mode = 'auto' | TimeOfDay;
@@ -222,7 +222,7 @@ export default function StreetView({
           <Street
             lots={lots}
             timeOfDay={timeOfDay}
-            hrefForLot={(lot: Lot) => `/lots/${encodeURIComponent(lot.address)}`}
+            hrefForLot={(lot: Lot) => `/${addressSlug(lot.address)}`}
             highlightAddress={focusAddress}
             logoUrls={logoUrls}
             hrefForStreet={(street: StreetDef) => `/street/${street.slug}`}

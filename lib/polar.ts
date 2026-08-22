@@ -17,7 +17,7 @@
  * because which one sells is a thing worth being able to see.
  */
 
-import { DISTRICTS, type Standing, type Tier } from './lots';
+import { DISTRICTS, addressSlug, type Standing, type Tier } from './lots';
 import { priceFor, standingOf } from './pricing';
 
 const API = 'https://api.polar.sh';
@@ -81,7 +81,7 @@ export async function createCheckout(lot: Sellable): Promise<CheckoutResult> {
       headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
         products: [productFor(lot)],
-        success_url: `${SITE}/lots/${encodeURIComponent(lot.address)}?bought=1`,
+        success_url: `${SITE}/${addressSlug(lot.address)}?bought=1`,
         metadata: { address: lot.address },
       }),
     });

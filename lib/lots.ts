@@ -186,6 +186,36 @@ export function streetBySlug(slug: string): StreetDef | undefined {
   return STREETS.find((street) => street.slug === slug);
 }
 
+/* ---- Addresses in a URL ------------------------------------------------ */
+
+/**
+ * "102 Cinder Row" → "102-cinder-row".
+ *
+ * The address is the thing an owner shows people, so it should survive being
+ * pasted into a message, a bio or a printed card. `/lots/102%20Cinder%20Row`
+ * does not: it is longer, it is unreadable once encoded, and half the places it
+ * gets pasted mangle the escapes.
+ *
+ * Every address begins with a house number, which is what keeps this safe as a
+ * top-level route — no address can ever collide with /city, /streets or /login.
+ */
+export function addressSlug(address: string): string {
+  return address
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+let slugIndex: Map<string, string> | null = null;
+
+/** "102-cinder-row" → "102 Cinder Row", or null if no such address exists. */
+export function addressFromSlug(slug: string): string | null {
+  if (!slugIndex) {
+    slugIndex = new Map(generateLots().map((lot) => [addressSlug(lot.address), lot.address]));
+  }
+  return slugIndex.get(addressSlug(slug)) ?? null;
+}
+
 export function streetByName(name: string): StreetDef | undefined {
   return STREETS.find((street) => street.name === name);
 }

@@ -20,7 +20,7 @@ import Link from 'next/link';
 import { buildInventory, type OwnedLot } from '@/lib/inventory';
 import { getOverrides } from '@/lib/lot-store';
 import { currentUser } from '@/lib/session';
-import { DISTRICTS } from '@/lib/lots';
+import { DISTRICTS, addressSlug } from '@/lib/lots';
 import { formatPrice, priceFor, priceRange } from '@/lib/pricing';
 
 export const dynamic = 'force-dynamic';
@@ -148,7 +148,7 @@ export default async function StreetsPage({
                       return (
                         <li key={lot.address}>
                           <Link
-                            href={`/lots/${encodeURIComponent(lot.address)}`}
+                            href={`/${addressSlug(lot.address)}`}
                             className={`mw-address mw-address-${state.replace(' ', '-')}`}
                           >
                             <span className="mw-address-no">{lot.number}</span>

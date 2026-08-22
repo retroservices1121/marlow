@@ -13,7 +13,8 @@
     "verify:polar": "node scripts/verify-polar.js",
     "polar:reconcile": "node scripts/polar-reconcile.js",
     "db:migrate": "node scripts/migrate.js",
-    "grant": "node scripts/grant.js"
+    "grant": "node scripts/grant.js",
+    "transfer": "node scripts/transfer.js"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.8.0",

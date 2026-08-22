@@ -12,6 +12,7 @@
 
 import { buildInventory } from '@/lib/inventory';
 import { getOverrides, isRealAddress } from '@/lib/lot-store';
+import { addressSlug } from '@/lib/lots';
 import { createCheckout, SITE } from '@/lib/polar';
 
 export const runtime = 'nodejs';
@@ -28,7 +29,7 @@ export type Problem = 'unknown-address' | 'already-taken' | 'checkout-failed';
 
 function back(address: string | null, problem: Problem) {
   const to = address
-    ? `/lots/${encodeURIComponent(address)}?problem=${problem}`
+    ? `/${addressSlug(address)}?problem=${problem}`
     : `/street/main-street?problem=${problem}`;
   return Response.redirect(new URL(to, SITE), 303);
 }

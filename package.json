@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/run-verify.js",
     "og": "node scripts/run-og.js",
+    "vehicles": "node scripts/run-vehicles.js",
     "verify:db": "node scripts/run-verify.js db",
     "verify:e2e": "node scripts/e2e.js",
     "verify:polar": "node scripts/verify-polar.js",

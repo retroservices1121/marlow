@@ -15,3 +15,7 @@ next-env.d.ts
 !.env.example
 
 .DS_Store
+
+# Working pictures, redrawn by npm run vehicles / npm run og.
+vehicle-preview.png
+og-debug.svg

@@ -20,7 +20,7 @@
  */
 
 import Vehicle, { VEHICLE_SIZE, type VehicleKind } from './Vehicle';
-import { nextBidCents, type AdSlot } from '@/lib/ads';
+import type { AdSlot } from '@/lib/ads';
 import { formatPrice } from '@/lib/pricing';
 import { CORNER_RADIUS, STROKE_WIDTH } from '@/lib/palette';
 import { applyTimeTint, type TimePalette } from '@/lib/palette';
@@ -174,7 +174,7 @@ export default function Traffic({
             {slot?.taken && (
               <a href="/ads">
                 <OutbidTag
-                  cents={nextBidCents(slot)}
+                  cents={slot.nextCents}
                   stroke={palette.stroke}
                   width={size.width}
                   top={-size.height}

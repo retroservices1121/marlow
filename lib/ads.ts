@@ -37,6 +37,15 @@ export type AdSlot = {
   url: string | null;
   /** Served from our own origin; null while the panel is empty. */
   adUrl: string | null;
+  /**
+   * The smallest bid that would take this vehicle, worked out here.
+   *
+   * Carried on the slot rather than computed where it is drawn, because the
+   * street is a client component: importing the function that knows this would
+   * pull this module, and the database driver behind it, into the browser
+   * bundle. It did, and the build said so — `Can't resolve 'dns'`.
+   */
+  nextCents: number;
 };
 
 function isKind(value: unknown): value is VehicleKind {
@@ -76,10 +85,13 @@ export async function adSlots(): Promise<AdSlot[]> {
 
   return VEHICLE_KINDS.map((kind) => {
     const row = byKind.get(kind);
+    const minBidCents = Number(row?.min_bid_cents ?? 0);
+    const bidCents = Number(row?.bid_cents ?? 0);
     return {
       kind,
-      minBidCents: Number(row?.min_bid_cents ?? 0),
-      bidCents: Number(row?.bid_cents ?? 0),
+      minBidCents,
+      bidCents,
+      nextCents: Math.max(minBidCents, bidCents + BID_STEP_CENTS),
       taken: Boolean(row?.image_hash),
       // Re-validated on the way out: a row written before a rule tightened must
       // not reach an href unchecked.

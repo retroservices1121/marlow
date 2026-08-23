@@ -10,9 +10,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import StreetView from '@/components/StreetView';
 import FollowOnX from '@/components/FollowOnX';
+import ShopDirectory from '@/components/ShopDirectory';
 import MarlowIntro from '@/components/MarlowIntro';
 import { buildInventory } from '@/lib/inventory';
-import { getOverrides, isRealAddress, logoHashesFor } from '@/lib/lot-store';
+import { getOverrides, isRealAddress, logoHashesFor, openShops } from '@/lib/lot-store';
 import { DISTRICTS, STREETS, junctionsOn, parentStreet, streetBySlug } from '@/lib/lots';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +35,13 @@ export default async function StreetPage({
 
   const overrides = await getOverrides();
   const everywhere = buildInventory(overrides);
+  /*
+   * The directory of open shops, on the front page only. Every other street is
+   * somewhere you have already chosen to be; this is the page strangers land
+   * on, and it is the only place a shop on a side street can be seen without
+   * being looked for.
+   */
+  const shops = street.main && street.slug === 'main-street' ? await openShops() : null;
   const lots = everywhere.filter((l) => l.street === street.name);
   const takenEverywhere = everywhere.filter((l) => l.claimed).length;
 
@@ -93,6 +101,8 @@ export default async function StreetPage({
           />
         }
       />
+
+      {shops && <ShopDirectory lots={everywhere} shops={shops} />}
 
       <p className="mw-meta">
         {back && (

@@ -365,6 +365,50 @@ export async function getLogo(address: string): Promise<StoredLogo | null> {
   };
 }
 
+/**
+ * Every shop that is open, with what it says about itself.
+ *
+ * One query for the whole directory. The obvious version — walk the claimed
+ * lots and fetch each profile — is a round trip per shop, which is fine at
+ * three and ruinous at three hundred, and the page it feeds is the one meant to
+ * get busier.
+ */
+export type OpenShop = {
+  address: string;
+  url: string | null;
+  bio: string | null;
+  logoHash: string | null;
+};
+
+export async function openShops(): Promise<Map<string, OpenShop>> {
+  const db = await getDb();
+  const rows = await db.query<{
+    address: string;
+    store_url: string | null;
+    store_bio: string | null;
+    hash: string | null;
+  }>(
+    `select l.address, l.store_url, l.store_bio, g.hash
+       from lots l
+       left join lot_logos g on g.address = l.address
+      where l.owner_id is not null or l.owner_email is not null`,
+  );
+
+  return new Map(
+    rows.map((row) => [
+      row.address,
+      {
+        address: row.address,
+        // Re-validated on the way out, exactly as a single profile is: a row
+        // written before a rule tightened must not reach an href unchecked.
+        url: normalizeUrl(row.store_url),
+        bio: normalizeBio(row.store_bio),
+        logoHash: row.hash,
+      },
+    ]),
+  );
+}
+
 /** Just the hash, for deciding whether to render a logo without loading it. */
 export async function logoHash(address: string): Promise<string | null> {
   const db = await getDb();

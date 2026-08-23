@@ -1404,3 +1404,148 @@ body {
   font-weight: 400;
   color: #6b6b64;
 }
+
+/* ---- Every open shop, on the front page ------------------------------- */
+
+.mw-directory {
+  padding: 26px 20px 8px;
+}
+
+.mw-directory-street {
+  margin: 0 0 22px;
+}
+
+.mw-directory-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mw-directory-heading a {
+  color: var(--mw-ink);
+  text-decoration: none;
+  border-bottom: 3px solid #f5ce3e;
+}
+
+.mw-directory-heading small {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b6b64;
+}
+
+/*
+ * A row that scrolls sideways rather than a grid that wraps. A street is a run
+ * of shops; stacking them into a block would lose the one thing the drawing is
+ * for. Wide enough to promise more when there is more.
+ */
+.mw-directory-row {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 8px;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.mw-shop {
+  flex: none;
+  width: 232px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  border: 3px solid var(--mw-ink);
+  border-radius: 2px;
+  background: var(--mw-panel);
+  overflow: hidden;
+}
+
+.mw-shop-front {
+  display: block;
+  padding: 10px 10px 0;
+  background: #cfe9f2;
+  border-bottom: 3px solid var(--mw-ink);
+}
+
+.mw-shop-portrait {
+  display: block;
+  width: 100%;
+  height: 128px;
+}
+
+.mw-shop-card {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mw-shop-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.mw-shop-name img {
+  flex: none;
+  border: 2px solid var(--mw-ink);
+  border-radius: 2px;
+  background: #fff6e5;
+  object-fit: contain;
+}
+
+.mw-shop-name a {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--mw-ink);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mw-shop-name a:hover {
+  border-bottom: 2px solid var(--mw-ink);
+}
+
+.mw-shop-card small {
+  font-size: 12px;
+  color: #6b6b64;
+}
+
+.mw-shop-card p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #4a4a45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mw-shop-card a[data-stat] {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mw-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .mw-directory {
+    padding: 20px 14px 4px;
+  }
+
+  .mw-shop {
+    width: 196px;
+  }
+}

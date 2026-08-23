@@ -20,6 +20,7 @@
 
 import { createHmac, timingSafeEqual } from 'crypto';
 import { purchaseLotForEmail } from '@/lib/lot-store';
+import { settleBid } from '@/lib/ads';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -105,6 +106,22 @@ const str = (v: unknown): string | null =>
  * depends on the event, so every place it can legitimately appear is checked
  * rather than guessing one and failing silently after taking somebody's money.
  */
+/**
+ * The bid a payment is for, if it is for a bid at all.
+ *
+ * Ads and lots come through the same webhook and are told apart by which piece
+ * of metadata is present. A payment carrying neither is money that arrived with
+ * no idea what it bought, and is logged rather than guessed at.
+ */
+function bidIn(data: Json): string | null {
+  const sources = [obj(data.metadata), obj(obj(data.checkout)?.metadata), obj(obj(data.order)?.metadata)];
+  for (const source of sources) {
+    const found = source && str(source.bid_id);
+    if (found) return found;
+  }
+  return null;
+}
+
 function addressIn(data: Json): string | null {
   const sources = [
     obj(data.metadata),
@@ -181,6 +198,26 @@ export async function POST(req: Request) {
   const data = obj(event.data) ?? {};
 
   if (!isPaid(type, data)) return OK();
+
+  /*
+   * An ad bid settles on its own terms: it may win the vehicle or it may lose
+   * it, and losing is not a failure to be retried — the money is kept and the
+   * bid is recorded either way, which is the rule the auction is run under and
+   * stated plainly wherever anybody can bid.
+   */
+  const bidId = bidIn(data);
+  if (bidId) {
+    const settled = await settleBid(bidId);
+    if (!settled.ok) {
+      console.error(`[polar] PAID BUT UNFULFILLED ${type} bid=${bidId} — ${settled.error}`);
+      return OK();
+    }
+    const { kind, won, cents, email: bidder } = settled.value;
+    console.log(
+      `[polar] bid ${bidId} on ${kind} for ${(cents / 100).toFixed(2)} by ${bidder}: ${won ? 'WON' : 'outbid already'} (${type}, key=${reading})`,
+    );
+    return OK();
+  }
 
   const address = addressIn(data);
   const email = emailIn(data);

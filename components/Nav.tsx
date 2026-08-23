@@ -18,6 +18,9 @@ export default async function Nav() {
         Marlow
       </Link>
       <div className="mw-nav-right">
+        <Link href="/ads" className="mw-nav-link">
+          Advertise
+        </Link>
         <Link href="/city" className="mw-nav-link">
           The city
         </Link>

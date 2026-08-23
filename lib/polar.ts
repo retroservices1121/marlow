@@ -155,3 +155,57 @@ export async function verifyProducts(): Promise<ProductCheck[]> {
   }
   return checks;
 }
+
+/* ---- Advertising ------------------------------------------------------- */
+
+/**
+ * The one product every ad bid is charged against.
+ *
+ * Pay-what-you-want, because a bid is whatever somebody offers. Its floor is
+ * the cheapest vehicle; the real floor for a particular vehicle is enforced
+ * before the checkout is created, and the exact amount is fixed on the checkout
+ * itself — so the number a bidder agreed to is the number they are charged,
+ * whatever Polar's own page would otherwise let them type.
+ */
+export const AD_PRODUCT = '34ba6e1a-35b0-44aa-becb-fb8d32f1d67e';
+
+/**
+ * A checkout for one bid.
+ *
+ * The bid's id travels as metadata, and it is the only thread tying the payment
+ * back to the artwork and the vehicle it was offered for.
+ */
+export async function createAdCheckout(bid: {
+  id: string;
+  cents: number;
+}): Promise<CheckoutResult> {
+  const token = process.env.POLAR_ACCESS_TOKEN;
+  if (!token) return { ok: false, error: 'Bidding is not switched on yet.' };
+
+  let response: Response;
+  try {
+    response = await fetch(`${API}/v1/checkouts/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        products: [AD_PRODUCT],
+        amount: bid.cents,
+        success_url: `${SITE}/ads?bid=${bid.id}`,
+        metadata: { bid_id: bid.id },
+      }),
+    });
+  } catch (e) {
+    console.error('[polar] ad checkout failed:', e instanceof Error ? e.message : e);
+    return { ok: false, error: 'Could not reach the checkout. Try again in a moment.' };
+  }
+
+  if (!response.ok) {
+    console.error(`[polar] ad checkout refused for bid ${bid.id}: HTTP ${response.status}`);
+    return { ok: false, error: 'Could not start the checkout.' };
+  }
+
+  const body = (await response.json()) as { url?: unknown };
+  return typeof body.url === 'string'
+    ? { ok: true, url: body.url }
+    : { ok: false, error: 'Checkout came back without a link.' };
+}

@@ -105,11 +105,8 @@ export default function Traffic({
                 {drawn}
               </a>
             ) : (
-              // An empty panel is not a link to anywhere yet. It will lead to
-              // the bidding page once there is one; until then a vehicle that
-              // says YOUR AD HERE and goes nowhere is better than one that
-              // promises a page and delivers a 404.
-              drawn
+              // An empty panel is itself the advertisement for the empty panel.
+              <a href="/ads">{drawn}</a>
             )}
           </g>
         );

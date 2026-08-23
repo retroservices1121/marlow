@@ -8,6 +8,7 @@
 import Link from 'next/link';
 import { SignOutButton } from '@clerk/nextjs';
 import { currentUser } from '@/lib/session';
+import FollowOnX from './FollowOnX';
 
 export default async function Nav() {
   const user = await currentUser();
@@ -24,12 +25,18 @@ export default async function Nav() {
           * would be the same request twice within an inch of itself, and the
           * header is the one part of the town that is on every page.
           */}
-        <Link href="/city" className="mw-nav-link">
+        {/*
+          * Chips, not quiet links. The header is the one row that appears on
+          * every page in the town, and a row of underlined text reads as
+          * furniture — something to look past on the way to the street.
+          */}
+        <FollowOnX className="mw-chip mw-chip-small mw-chip-x" />
+        <Link href="/city" className="mw-chip mw-chip-small">
           The city
         </Link>
         {user ? (
           <>
-            <Link href="/lots" className="mw-nav-link">
+            <Link href="/lots" className="mw-chip mw-chip-small">
               Your lots
             </Link>
             <SignOutButton redirectUrl="/">
@@ -49,7 +56,7 @@ export default async function Nav() {
            * signup form. Browsing lives on the street and on the city map,
            * both a click away, and every lot page carries its own buy button.
            */
-          <Link href="/login" className="mw-nav-link">
+          <Link href="/login" className="mw-chip mw-chip-small">
             Sign in
           </Link>
         )}

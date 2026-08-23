@@ -9,7 +9,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import StreetView from '@/components/StreetView';
-import FollowOnX from '@/components/FollowOnX';
 import TownBusy from '@/components/TownBusy';
 import ShopDirectory from '@/components/ShopDirectory';
 import MarlowIntro from '@/components/MarlowIntro';
@@ -99,7 +98,6 @@ export default async function StreetPage({
         ads={ads}
         action={
           <>
-            <FollowOnX />
             <Link className="mw-chip mw-chip-ad" href="/ads">
               Advertise on a truck
             </Link>

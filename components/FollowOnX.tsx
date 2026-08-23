@@ -13,10 +13,10 @@
 
 const MARLOW_ON_X = 'https://x.com/marlowdottown';
 
-export default function FollowOnX() {
+export default function FollowOnX({ className = 'mw-chip mw-chip-x' }: { className?: string }) {
   return (
     <a
-      className="mw-chip mw-chip-x"
+      className={className}
       href={MARLOW_ON_X}
       target="_blank"
       rel="noopener noreferrer"

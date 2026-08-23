@@ -221,6 +221,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 14px 20px;
   border-bottom: 3px solid var(--mw-ink);
@@ -235,10 +236,12 @@ body {
   text-decoration: none;
 }
 
+/* Wraps rather than shoves the brand off the edge on a narrow phone. */
 .mw-nav-right {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .mw-nav-link {

@@ -33,7 +33,8 @@ export default function TownBusy({ busy }: { busy: TownBusyness | null }) {
       {showOnline && showToday && <span className="mw-busy-sep"> · </span>}
       {showToday && (
         <span>
-          <strong>{busy.today.toLocaleString()}</strong> today
+          <strong>{busy.today.toLocaleString()}</strong>{' '}
+          {busy.today === 1 ? 'visit' : 'visits'}
         </span>
       )}
     </p>

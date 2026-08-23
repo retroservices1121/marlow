@@ -39,14 +39,19 @@ export default async function Nav() {
             </SignOutButton>
           </>
         ) : (
-          <>
-            <Link href="/login" className="mw-nav-link">
-              Sign in
-            </Link>
-            <Link href="/register" className="mw-chip mw-chip-small">
-              Take a lot
-            </Link>
-          </>
+          /*
+           * Sign in, and nothing else.
+           *
+           * There was a "Take a lot" chip here pointing at /register, which
+           * stopped being true the day the town started charging: a lot is
+           * bought from its own page without an account, and signing up first
+           * gets you nothing. It promised the main action and delivered a
+           * signup form. Browsing lives on the street and on the city map,
+           * both a click away, and every lot page carries its own buy button.
+           */
+          <Link href="/login" className="mw-nav-link">
+            Sign in
+          </Link>
         )}
       </div>
     </nav>

@@ -39,6 +39,22 @@ export type TownBusyness = {
  */
 function findCount(payload: unknown, keys: string[]): number | null {
   if (!payload || typeof payload !== 'object') return null;
+
+  /*
+   * Arrays first, because that is what actually comes back:
+   * {"status":"success","data":[{"visitors":9}]}. An array is an object to
+   * typeof, so without this the walk stepped into it, found no named field,
+   * and reported "no idea" — rendering nothing, with real numbers sitting one
+   * bracket away. Found by calling the API rather than by reading the code.
+   */
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      const found = findCount(item, keys);
+      if (found !== null) return found;
+    }
+    return null;
+  }
+
   const record = payload as Record<string, unknown>;
 
   for (const key of keys) {

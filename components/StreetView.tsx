@@ -20,11 +20,16 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import Street from './Street';
 import type { OwnedLot } from '@/lib/inventory';
 import { addressSlug, type Lot, type StreetDef } from '@/lib/lots';
-import { TIMES_OF_DAY, currentTimeOfDay, type TimeOfDay } from '@/lib/palette';
+import { currentTimeOfDay, type TimeOfDay } from '@/lib/palette';
 
-type Mode = 'auto' | TimeOfDay;
-
-/** First render is always `day` so the server and the client agree. */
+/**
+ * First render is always `day` so the server and the client agree.
+ *
+ * The clock takes over a moment later. There used to be buttons for dawn, day,
+ * dusk and night, and they were the first thing on the page — which told a
+ * first-time visitor that the interesting decision here was the lighting. It is
+ * not. The town keeps its own time and gets on with it.
+ */
 const SSR_TIME: TimeOfDay = 'day';
 
 /** Pixels per second while an arrow key is held. */
@@ -46,17 +51,14 @@ export default function StreetView({
   /** Rendered over the street — the pitch, when somebody arrives here first. */
   overlay?: ReactNode;
 }) {
-  const [mode, setMode] = useState<Mode>('auto');
-  const [clockTime, setClockTime] = useState<TimeOfDay>(SSR_TIME);
+  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(SSR_TIME);
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setClockTime(currentTimeOfDay());
-    const timer = window.setInterval(() => setClockTime(currentTimeOfDay()), 60_000);
+    setTimeOfDay(currentTimeOfDay());
+    const timer = window.setInterval(() => setTimeOfDay(currentTimeOfDay()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
-
-  const timeOfDay: TimeOfDay = mode === 'auto' ? clockTime : mode;
 
   /**
    * Centres an element in the scroller, measured from the DOM rather than
@@ -179,32 +181,11 @@ export default function StreetView({
 
   return (
     <>
-      <div className="mw-controls">
-        <p className="mw-legend">Time of day</p>
-        <div className="mw-control-group" role="group" aria-label="Time of day">
-          <button
-            type="button"
-            className="mw-chip"
-            aria-pressed={mode === 'auto'}
-            onClick={() => setMode('auto')}
-          >
-            Auto ({clockTime})
-          </button>
-          {TIMES_OF_DAY.map((time) => (
-            <button
-              key={time}
-              type="button"
-              className="mw-chip"
-              aria-pressed={mode === time}
-              onClick={() => setMode(time)}
-            >
-              {time}
-            </button>
-          ))}
+      {action && (
+        <div className="mw-controls">
+          <div className="mw-controls-end">{action}</div>
         </div>
-
-        {action && <div className="mw-controls-end">{action}</div>}
-      </div>
+      )}
 
       <div className="mw-stage">
         <div

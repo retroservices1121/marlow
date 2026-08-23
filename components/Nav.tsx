@@ -19,13 +19,11 @@ export default async function Nav() {
       </Link>
       <div className="mw-nav-right">
         {/*
-          * A chip, not a link. Three vehicles standing empty earn nothing, and
-          * the one page that sells them was sitting in the row of quiet
-          * navigation where nobody looks for something to buy.
+          * Advertising is offered on the street itself, beside the other asks,
+          * and by the empty panels driving past. Repeating it in the header
+          * would be the same request twice within an inch of itself, and the
+          * header is the one part of the town that is on every page.
           */}
-        <Link href="/ads" className="mw-chip mw-chip-small mw-chip-ad">
-          Advertise
-        </Link>
         <Link href="/city" className="mw-nav-link">
           The city
         </Link>

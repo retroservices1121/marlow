@@ -130,6 +130,23 @@ body {
  */
 .mw-controls-end {
   margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* The X mark sits on the text baseline, at the size of the text. */
+.mw-chip-x {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mw-chip-x svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
 }
 
 .mw-legend {

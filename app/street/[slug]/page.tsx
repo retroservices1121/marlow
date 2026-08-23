@@ -9,6 +9,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import StreetView from '@/components/StreetView';
+import FollowOnX from '@/components/FollowOnX';
 import MarlowIntro from '@/components/MarlowIntro';
 import { buildInventory } from '@/lib/inventory';
 import { getOverrides, isRealAddress, logoHashesFor } from '@/lib/lot-store';
@@ -76,9 +77,12 @@ export default async function StreetPage({
         focusAddress={focusAddress}
         logoUrls={logoUrls}
         action={
-          <Link className="mw-chip" href="/streets">
-            See every address
-          </Link>
+          <>
+            <FollowOnX />
+            <Link className="mw-chip" href="/streets">
+              See every address
+            </Link>
+          </>
         }
         overlay={
           <MarlowIntro

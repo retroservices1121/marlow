@@ -137,16 +137,19 @@ body {
 }
 
 /* The X mark sits on the text baseline, at the size of the text. */
+/* The mark sits where the letter X would, at the size of the text around it. */
 .mw-chip-x {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
 }
 
 .mw-chip-x svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   flex: none;
+  /* Nudged to sit on the text baseline rather than the line box. */
+  margin-top: 1px;
 }
 
 .mw-legend {

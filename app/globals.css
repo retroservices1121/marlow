@@ -279,6 +279,19 @@ body {
   color: #fff6e5;
 }
 
+/*
+ * The one thing on the page that is for sale by the day rather than forever.
+ * Yellow because it is the town's own accent, already used on street signs, so
+ * it reads as part of Marlow rather than as an advertisement for advertising.
+ */
+.mw-chip-ad {
+  background: #f5ce3e;
+}
+
+.mw-chip-ad:hover {
+  background: #ffe9b8;
+}
+
 .mw-chip-small {
   padding: 6px 11px;
   font-size: 12px;

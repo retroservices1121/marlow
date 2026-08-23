@@ -96,6 +96,9 @@ export default async function StreetPage({
         action={
           <>
             <FollowOnX />
+            <Link className="mw-chip mw-chip-ad" href="/ads">
+              Advertise on a truck
+            </Link>
             <Link className="mw-chip" href="/streets">
               See every address
             </Link>

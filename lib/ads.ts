@@ -43,15 +43,22 @@ function isKind(value: unknown): value is VehicleKind {
   return VEHICLE_KINDS.includes(value as VehicleKind);
 }
 
+/** A bid moves in whole dollars. */
+export const BID_STEP_CENTS = 100;
+
 /**
  * What the smallest winning bid would be, in whole cents.
  *
- * A bid has to beat the standing one outright — equalling it does nothing, and
- * a slot that changed hands on a tie would be decided by whoever refreshed
- * fastest. Below the floor nothing counts at all.
+ * A whole dollar more than the standing bid, not a penny more. A one-cent
+ * increment turns an auction into a typing contest — the winner is whoever is
+ * willing to sit there adding pennies, and every bid is worth almost exactly
+ * what the last one was. A dollar makes each bid mean something and keeps the
+ * numbers on the page readable.
+ *
+ * Below the floor nothing counts at all.
  */
 export function nextBidCents(slot: AdSlot): number {
-  return Math.max(slot.minBidCents, slot.bidCents + 1);
+  return Math.max(slot.minBidCents, slot.bidCents + BID_STEP_CENTS);
 }
 
 /** All three vehicles, in the order they drive. */

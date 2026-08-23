@@ -18,7 +18,12 @@ export default async function Nav() {
         Marlow
       </Link>
       <div className="mw-nav-right">
-        <Link href="/ads" className="mw-nav-link">
+        {/*
+          * A chip, not a link. Three vehicles standing empty earn nothing, and
+          * the one page that sells them was sitting in the row of quiet
+          * navigation where nobody looks for something to buy.
+          */}
+        <Link href="/ads" className="mw-chip mw-chip-small mw-chip-ad">
           Advertise
         </Link>
         <Link href="/city" className="mw-nav-link">

@@ -113,8 +113,17 @@ export default async function AdsPage({
           <section key={slot.kind} className="mw-ad-slot">
             <h2 className="mw-street-heading">
               {VEHICLE_LABEL[slot.kind]}
+              {/*
+                * "held at $0" is what a seeded vehicle said, which reads as a
+                * fault rather than as a founding shop riding free. Three states,
+                * because there are three: paid for, lent out, and empty.
+                */}
               <small>
-                {slot.taken ? `held at ${formatPrice(slot.bidCents)}` : 'nobody riding'}
+                {!slot.taken
+                  ? 'nobody riding'
+                  : slot.bidCents > 0
+                    ? `held at ${formatPrice(slot.bidCents)}`
+                    : 'riding free · any bid takes it'}
               </small>
             </h2>
 

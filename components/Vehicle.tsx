@@ -4,13 +4,20 @@
  * Drawn to the town's rules — one stroke width, flat fills, no gradients — so a
  * truck belongs on the street rather than sitting on it like a sticker.
  *
- * All three face right, because they all drive the same way and a convoy
- * arguing about direction reads as a mistake. All three fit inside the road:
- * the street gives 104 units between the curb and the bottom of the frame, and
- * a vehicle taller than that slides across the shopfronts people are paying
- * for. The ad being legible matters; the shops staying visible matters more,
- * and the vehicle moves — its panel is read over a few seconds, not at a
- * glance.
+ * Each is drawn at its own true size rather than one shape scaled three ways.
+ * Scaling would thin the outline on the smaller vehicles, and a uniform 3.5
+ * stroke is the single rule this whole town is drawn by; a van with a finer
+ * line than the shop behind it stops looking like it is in the same place.
+ *
+ * They are deliberately different sizes, and deliberately small. Different,
+ * because three identical rectangles at three prices is not a choice anybody
+ * can see the reason for — truck, then pickup, then van, and their ad panels
+ * fall in the same order so the price ladder is visible before it is read.
+ * Small, because the street only gives 104 units between the curb and the
+ * bottom of the frame, and anything filling that slides across the shopfronts
+ * people are paying for.
+ *
+ * All three face right. A convoy arguing about direction reads as a mistake.
  *
  * Nothing about the artwork is ours, so it is clipped to its panel and can
  * never paint outside it.
@@ -35,19 +42,26 @@ export type VehicleProps = {
 
 const INK = { strokeWidth: STROKE_WIDTH, strokeLinejoin: 'round' as const };
 
-/** Every vehicle is drawn in this box, standing on y = 0, nose to the right. */
-export const VEHICLE_WIDTH = 300;
-export const VEHICLE_HEIGHT = 100;
+/**
+ * How much road each one takes, nose to tail, standing on y = 0.
+ *
+ * Exported because the street has to know how far apart to space them and how
+ * far to drive them before they are off the end.
+ */
+export const VEHICLE_SIZE: Record<VehicleKind, { width: number; height: number }> = {
+  led: { width: 250, height: 82 },
+  pickup: { width: 196, height: 64 },
+  van: { width: 158, height: 50 },
+};
 
-const WHEEL_R = 14;
 const GLASS = '#CFE9F2';
 const TYRE = '#2B2B2B';
 
-function Wheel({ cx }: { cx: number }) {
+function Wheel({ cx, r }: { cx: number; r: number }) {
   return (
     <>
-      <circle cx={cx} cy={-WHEEL_R} r={WHEEL_R} fill={TYRE} stroke="#1A1A1A" {...INK} />
-      <circle cx={cx} cy={-WHEEL_R} r={WHEEL_R * 0.36} fill="#D9CBB3" stroke="#1A1A1A" strokeWidth={2.5} />
+      <circle cx={cx} cy={-r} r={r} fill={TYRE} stroke="#1A1A1A" {...INK} />
+      <circle cx={cx} cy={-r} r={r * 0.34} fill="#D9CBB3" stroke="#1A1A1A" strokeWidth={2.5} />
     </>
   );
 }
@@ -102,13 +116,13 @@ function AdPanel({
       ) : (
         <text
           x={x + w / 2}
-          y={y + h / 2 + Math.min(6, h * 0.16)}
+          y={y + h / 2 + Math.min(5, h * 0.17)}
           textAnchor="middle"
-          fontSize={Math.min(17, h * 0.42)}
+          fontSize={Math.min(15, h * 0.44)}
           fontWeight={600}
           fill="#6B6B64"
-          /* A long invitation is squeezed rather than allowed off the side. */
-          textLength={label.length > 13 ? w - 16 : undefined}
+          /* Squeezed to fit rather than allowed off the side of the van. */
+          textLength={w - 12}
           lengthAdjust="spacingAndGlyphs"
         >
           {label}
@@ -123,57 +137,54 @@ function AdPanel({
 export default function Vehicle({ kind, adUrl, vacantText, body, stroke, id }: VehicleProps) {
   if (kind === 'led') {
     /*
-     * A flatbed carrying a screen. The screen rides at the back and the cab
-     * leads, so the biggest panel in the town is the last thing you see going
-     * past rather than the first — which is the right way round for something
-     * driving away from you.
+     * A flatbed carrying a screen — the biggest panel in the town, riding at
+     * the back with the cab leading, which is the right way round for
+     * something driving away from you.
      */
     return (
       <g>
-        {/* Chassis */}
-        <rect x={0} y={-26} width={300} height={16} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
-        {/* Cab, leading */}
-        <rect x={228} y={-74} width={72} height={48} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
-        <rect x={252} y={-68} width={40} height={22} rx={CORNER_RADIUS} fill={GLASS} stroke={stroke} strokeWidth={2.5} />
-        {/* The screen and its housing */}
-        <rect x={6} y={-96} width={214} height={72} rx={CORNER_RADIUS} fill="#1A1A1A" stroke={stroke} {...INK} />
-        <AdPanel x={16} y={-88} w={194} h={56} adUrl={adUrl} vacantText={vacantText} stroke={stroke} id={id} />
-        <Wheel cx={48} />
-        <Wheel cx={150} />
-        <Wheel cx={258} />
+        <rect x={0} y={-24} width={250} height={13} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
+        <rect x={192} y={-62} width={58} height={38} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
+        <rect x={208} y={-57} width={32} height={18} rx={CORNER_RADIUS} fill={GLASS} stroke={stroke} strokeWidth={2.5} />
+        <rect x={4} y={-82} width={182} height={60} rx={CORNER_RADIUS} fill="#1A1A1A" stroke={stroke} {...INK} />
+        <AdPanel x={12} y={-75} w={166} h={46} adUrl={adUrl} vacantText={vacantText} stroke={stroke} id={id} />
+        <Wheel cx={40} r={12} />
+        <Wheel cx={126} r={12} />
+        <Wheel cx={216} r={12} />
       </g>
     );
   }
 
   if (kind === 'pickup') {
-    /* A working truck: bed at the back carrying the panel, cab in front. */
+    /* A working truck, second of the three: bed at the back, cab in front. */
     return (
       <g>
-        <rect x={0} y={-30} width={300} height={18} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
-        {/* Bed side, which is what the ad is painted on */}
-        <rect x={0} y={-72} width={172} height={46} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
-        {/* Cab */}
-        <rect x={168} y={-84} width={92} height={54} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
-        <rect x={182} y={-78} width={40} height={24} rx={CORNER_RADIUS} fill={GLASS} stroke={stroke} strokeWidth={2.5} />
-        {/* Bonnet */}
-        <rect x={260} y={-58} width={40} height={28} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
-        <AdPanel x={10} y={-66} w={152} h={34} adUrl={adUrl} vacantText={vacantText} stroke={stroke} id={id} />
-        <Wheel cx={44} />
-        <Wheel cx={232} />
+        <rect x={0} y={-28} width={196} height={14} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
+        <rect x={0} y={-56} width={114} height={30} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
+        <rect x={112} y={-64} width={54} height={38} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
+        <rect x={121} y={-58} width={28} height={16} rx={CORNER_RADIUS} fill={GLASS} stroke={stroke} strokeWidth={2.5} />
+        <rect x={166} y={-46} width={30} height={20} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
+        <AdPanel x={8} y={-51} w={100} h={24} adUrl={adUrl} vacantText={vacantText} stroke={stroke} id={id} />
+        <Wheel cx={32} r={13} />
+        <Wheel cx={152} r={13} />
       </g>
     );
   }
 
-  /* A panel van: one flat side, wrapped end to end. */
+  /*
+   * A small panel van, least of the three. Its side is one flat surface, so its
+   * panel is kept deliberately short of the pickup's — otherwise the smallest
+   * vehicle would carry the second-biggest advertisement and the price ladder
+   * would stop making sense to anybody looking at it.
+   */
   return (
     <g>
-      <rect x={0} y={-88} width={236} height={76} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
-      <rect x={236} y={-62} width={64} height={50} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
-      <rect x={250} y={-56} width={38} height={22} rx={CORNER_RADIUS} fill={GLASS} stroke={stroke} strokeWidth={2.5} />
-      <rect x={0} y={-14} width={300} height={6} rx={CORNER_RADIUS} fill={body} stroke={stroke} strokeWidth={2.5} />
-      <AdPanel x={14} y={-80} w={208} h={54} adUrl={adUrl} vacantText={vacantText} stroke={stroke} id={id} />
-      <Wheel cx={52} />
-      <Wheel cx={252} />
+      <rect x={0} y={-50} width={122} height={39} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
+      <rect x={122} y={-34} width={36} height={23} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
+      <rect x={130} y={-30} width={20} height={11} rx={CORNER_RADIUS} fill={GLASS} stroke={stroke} strokeWidth={2.5} />
+      <AdPanel x={8} y={-42} w={96} h={20} adUrl={adUrl} vacantText={vacantText} stroke={stroke} id={id} />
+      <Wheel cx={28} r={9} />
+      <Wheel cx={132} r={9} />
     </g>
   );
 }

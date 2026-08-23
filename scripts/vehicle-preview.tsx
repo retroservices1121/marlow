@@ -14,7 +14,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { join } from 'path';
 import sharp from 'sharp';
-import Vehicle, { VEHICLE_HEIGHT } from '@/components/Vehicle';
+import Vehicle, { VEHICLE_SIZE } from '@/components/Vehicle';
 import { TIME_PALETTES } from '@/lib/palette';
 
 const palette = TIME_PALETTES.day;
@@ -42,7 +42,7 @@ const rows = kinds
       <Vehicle kind={v.kind} body={v.body} stroke={palette.stroke} id={`ad-${v.kind}`} />,
     );
     return `
-      <text x="40" y="${y - 40}" font-family="Verdana, sans-serif" font-size="15" font-weight="700" fill="#1A1A1A">${v.label}</text>
+      <text x="40" y="${y - 40}" font-family="Verdana, sans-serif" font-size="15" font-weight="700" fill="#1A1A1A">${v.label} — ${VEHICLE_SIZE[v.kind].width}x${VEHICLE_SIZE[v.kind].height}</text>
       <g transform="translate(230 ${y})">${drawn}</g>
       <line x1="230" y1="${y}" x2="1160" y2="${y}" stroke="#B9B9B2" stroke-width="2" stroke-dasharray="7 6"/>
       <line x1="230" y1="${y - ROAD_DEPTH}" x2="1160" y2="${y - ROAD_DEPTH}" stroke="#E8544B" stroke-width="2" stroke-dasharray="4 5"/>`;

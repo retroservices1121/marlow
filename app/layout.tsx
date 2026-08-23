@@ -17,6 +17,13 @@ import './globals.css';
  */
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.MARLOW_URL ?? 'https://marlow.town'),
+  /*
+   * The town answers on two hostnames, so every page has to say which one is
+   * really it. Without this, two identical copies compete with each other in
+   * search and neither wins outright. Resolved against `metadataBase`, so it
+   * always names marlow.town whichever door served the page.
+   */
+  alternates: { canonical: './' },
   title: 'Marlow — your own virtual storefront',
   description:
     'Own a virtual storefront in Marlow, a hand-drawn town of 1,000 addresses. Put your sign over the door and your links inside. From $15.',

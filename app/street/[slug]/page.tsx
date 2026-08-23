@@ -14,6 +14,7 @@ import ShopDirectory from '@/components/ShopDirectory';
 import MarlowIntro from '@/components/MarlowIntro';
 import { buildInventory } from '@/lib/inventory';
 import { getOverrides, isRealAddress, logoHashesFor, openShops } from '@/lib/lot-store';
+import { adSlots } from '@/lib/ads';
 import { DISTRICTS, STREETS, junctionsOn, parentStreet, streetBySlug } from '@/lib/lots';
 
 export const dynamic = 'force-dynamic';
@@ -42,6 +43,13 @@ export default async function StreetPage({
    * being looked for.
    */
   const shops = street.main && street.slug === 'main-street' ? await openShops() : null;
+
+  /*
+   * The convoy drives every street, not just the front page. An advertiser is
+   * paying for the whole town to see them, and a side street with a truck
+   * going past is a side street that looks lived in.
+   */
+  const ads = await adSlots();
   const lots = everywhere.filter((l) => l.street === street.name);
   const takenEverywhere = everywhere.filter((l) => l.claimed).length;
 
@@ -84,6 +92,7 @@ export default async function StreetPage({
         lots={lots}
         focusAddress={focusAddress}
         logoUrls={logoUrls}
+        ads={ads}
         action={
           <>
             <FollowOnX />

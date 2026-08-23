@@ -1552,3 +1552,37 @@ body {
     width: 196px;
   }
 }
+
+/* ---- The ad convoy ----------------------------------------------------- */
+
+/*
+ * One animation for all three vehicles, driving the length of the street.
+ *
+ * The distance and duration come from the street itself, set as custom
+ * properties on the group, so a long street is crossed at the same speed as a
+ * short one rather than in the same number of seconds.
+ */
+@keyframes mw-drive {
+  from {
+    transform: translateX(calc(var(--mw-drive-from) * 1px));
+  }
+  to {
+    transform: translateX(calc(var(--mw-drive-to) * 1px));
+  }
+}
+
+.mw-traffic {
+  animation: mw-drive var(--mw-drive-secs, 90s) linear infinite;
+}
+
+/*
+ * Parked, for anybody who has asked for less motion. Something sliding across
+ * the page forever is precisely what that setting exists to stop — and the ads
+ * are still there, still legible, still clickable.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .mw-traffic {
+    animation: none;
+    transform: translateX(calc(var(--mw-drive-to) * 0.42px));
+  }
+}

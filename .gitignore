@@ -19,3 +19,4 @@ next-env.d.ts
 # Working pictures, redrawn by npm run vehicles / npm run og.
 vehicle-preview.png
 og-debug.svg
+street-traffic.png

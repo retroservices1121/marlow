@@ -24,6 +24,8 @@ import {
   type TimeOfDay,
 } from '@/lib/palette';
 import Building, { DEFAULT_BASELINE, buildingTotalHeight, deriveGeometry } from './Building';
+import Traffic from './Traffic';
+import type { AdSlot } from '@/lib/ads';
 import {
   Cloud,
   Crossing,
@@ -77,6 +79,8 @@ export type StreetProps = {
   highlightAddress?: string | null;
   /** Logo per address, for every owned shop that has one. */
   logoUrls?: Record<string, string>;
+  /** The three ad vehicles. Omitted on a street that should stand still. */
+  ads?: AdSlot[];
   /** Where a turning leads. Without this the openings are decoration. */
   hrefForStreet?: (street: StreetDef) => string;
 };
@@ -231,6 +235,7 @@ export default function Street({
   hrefForLot,
   highlightAddress,
   logoUrls,
+  ads,
   hrefForStreet,
 }: StreetProps) {
   const palette = TIME_PALETTES[timeOfDay];
@@ -522,6 +527,19 @@ export default function Street({
           />
         );
       })}
+
+      {/*
+        * Traffic last, so it passes in front of the curb and the street
+        * furniture the way something on the road actually would.
+        */}
+      {ads && ads.length > 0 && (
+        <Traffic
+          slots={ads}
+          totalWidth={totalWidth}
+          viewHeight={VIEW_HEIGHT}
+          palette={palette}
+        />
+      )}
     </svg>
   );
 }

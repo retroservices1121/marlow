@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Street from './Street';
 import type { OwnedLot } from '@/lib/inventory';
+import type { AdSlot } from '@/lib/ads';
 import { addressSlug, type Lot, type StreetDef } from '@/lib/lots';
 import { currentTimeOfDay, type TimeOfDay } from '@/lib/palette';
 
@@ -39,6 +40,7 @@ export default function StreetView({
   lots,
   focusAddress = null,
   logoUrls,
+  ads,
   action,
   overlay,
 }: {
@@ -46,6 +48,8 @@ export default function StreetView({
   focusAddress?: string | null;
   /** Logo per address, for every owned shop on this street. */
   logoUrls?: Record<string, string>;
+  /** The three ad vehicles, driving this street. */
+  ads?: AdSlot[];
   /** Sits at the right-hand end of the control row, opposite the clock. */
   action?: ReactNode;
   /** Rendered over the street — the pitch, when somebody arrives here first. */
@@ -206,6 +210,7 @@ export default function StreetView({
             hrefForLot={(lot: Lot) => `/${addressSlug(lot.address)}`}
             highlightAddress={focusAddress}
             logoUrls={logoUrls}
+            ads={ads}
             hrefForStreet={(street: StreetDef) => `/street/${street.slug}`}
           />
         </div>

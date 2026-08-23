@@ -30,12 +30,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'Marlow',
+    images: ['/card.png'],
     title: 'Marlow — your own virtual storefront',
     description:
       'A hand-drawn town of 1,000 shopfronts. Take an address, put your sign over the door, and send people on to your site. From $15.',
   },
   twitter: {
     card: 'summary_large_image',
+    images: ['/card.png'],
     title: 'Marlow — your own virtual storefront',
     description:
       'A hand-drawn town of 1,000 shopfronts. Take an address, put your sign over the door, and send people on to your site. From $15.',

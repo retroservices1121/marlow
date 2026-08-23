@@ -11,6 +11,12 @@
  * Run when the street's look changes. The result is committed, because a card
  * image is fetched by strangers' servers at unpredictable times and generating
  * it per request would be work done a thousand times for one answer.
+ *
+ * It lives in `public/` rather than as `app/opengraph-image.png`. Next turns
+ * that filename into a route handler, and a route handler runs inside the app —
+ * where our middleware matcher skips anything ending in .png, so Clerk found
+ * itself invoked without its middleware and the whole thing 500'd. A file in
+ * `public/` is just bytes on a URL, which is all a card image ever needed to be.
  */
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -93,7 +99,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${
   </g>
 </svg>`;
 
-const out = join(process.cwd(), 'app', 'opengraph-image.png');
+const out = join(process.cwd(), 'public', 'card.png');
 sharp(Buffer.from(svg))
   .png()
   .toFile(out)

@@ -59,7 +59,7 @@ export default function MarlowIntro({
   total,
   taken,
   districts,
-  hint = 'Drag to move · pinch or +/− to zoom · tap a building to see it',
+  hint = 'Drag to move · pinch or +/− to zoom · ↺ ↻ or Q/E to turn · tap a building to see it',
 }: {
   total: number;
   taken: number;

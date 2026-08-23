@@ -195,6 +195,30 @@ function Ground({
 export const MIN_ZOOM = 0.85;
 export const MAX_ZOOM = 26;
 
+/** Keys that walk the map. */
+const MOVE_KEYS = ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'w', 'a', 's', 'd'];
+
+/**
+ * Screen movement to movement across the plan, at whatever angle the camera
+ * currently stands.
+ *
+ * The old version had the 45-degree case multiplied out into a pair of 0.7s,
+ * which was right exactly once and silently wrong the moment the city could
+ * turn. Dragging, zooming toward the cursor and walking with the keys all go
+ * through here, so they cannot disagree about which way is left.
+ */
+function screenToPlan(sx: number, sy: number, azimuth: number): { x: number; z: number } {
+  // Screen right and screen down, as directions across the ground.
+  const rightX = Math.sin(azimuth);
+  const rightZ = -Math.cos(azimuth);
+  const downX = Math.cos(azimuth);
+  const downZ = Math.sin(azimuth);
+  return {
+    x: sx * rightX + sy * downX,
+    z: sx * rightZ + sy * downZ,
+  };
+}
+
 /**
  * Moving about the city.
  *
@@ -207,11 +231,18 @@ export const MAX_ZOOM = 26;
 function MapControls({
   plan,
   zoom,
+  azimuth,
+  azimuthWanted,
 }: {
   plan: ReturnType<typeof planCity>;
   zoom: React.RefObject<number>;
+  /** Where the camera is standing, in radians around the city. */
+  azimuth: React.RefObject<number>;
+  /** Where it is heading. Eased toward, so a turn reads as a turn. */
+  azimuthWanted: React.RefObject<number>;
 }) {
   const { camera, gl, size } = useThree();
+  const held = useRef(new Set<string>());
   /*
    * Centred on the plan, so the opening shot frames the whole city rather than
    * hanging it off one corner. Arriving in empty ground when zooming was fixed
@@ -283,10 +314,8 @@ function MapControls({
       const sx = clientX - rect.left - rect.width / 2;
       const sy = clientY - rect.top - rect.height / 2;
       const perPixel = 1 / (fit * zoom.current);
-      return {
-        x: (sx + sy) * 0.7 * perPixel,
-        z: (sy - sx) * 0.7 * perPixel,
-      };
+      const moved = screenToPlan(sx, sy, azimuth.current ?? Math.PI / 4);
+      return { x: moved.x * perPixel, z: moved.z * perPixel };
     };
 
     /** Zoom about a point, so whatever is under the cursor stays there. */
@@ -350,12 +379,14 @@ function MapControls({
 
       const from = drag.current;
       if (!from) return;
-      // Screen drag to plan movement, along the two isometric axes.
       const scale = 1 / (fit * zoom.current);
-      const dx = (e.clientX - from.x) * scale;
-      const dy = (e.clientY - from.y) * scale;
-      target.current.x -= (dx + dy) * 0.7;
-      target.current.z -= (dy - dx) * 0.7;
+      const moved = screenToPlan(
+        (e.clientX - from.x) * scale,
+        (e.clientY - from.y) * scale,
+        azimuth.current ?? Math.PI / 4,
+      );
+      target.current.x -= moved.x;
+      target.current.z -= moved.z;
       drag.current = { x: e.clientX, y: e.clientY };
     };
 
@@ -365,27 +396,94 @@ function MapControls({
       drag.current = null;
     };
 
+    /*
+     * Keys, because a map you can only drag is a map somebody with a keyboard
+     * cannot use. Arrows and WASD walk it; Q and E turn it.
+     */
+    const typing = (el: EventTarget | null) => {
+      const node = el as HTMLElement | null;
+      const tag = node?.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || node?.isContentEditable === true;
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target)) return;
+      const key = e.key.toLowerCase();
+      if (key === 'q' || key === 'e') {
+        // Quarter-turns of the isometric grid, so the streets stay square to
+        // the screen and the town never looks accidentally crooked.
+        azimuthWanted.current += (key === 'q' ? -1 : 1) * (Math.PI / 4);
+        e.preventDefault();
+        return;
+      }
+      if (MOVE_KEYS.includes(key)) {
+        held.current.add(key);
+        e.preventDefault();
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => held.current.delete(e.key.toLowerCase());
+    const forgetKeys = () => held.current.clear();
+
     canvas.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    // A key held while the tab loses focus never sends its keyup.
+    window.addEventListener('blur', forgetKeys);
     canvas.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
     return () => {
       canvas.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', forgetKeys);
       canvas.removeEventListener('pointerdown', onDown);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [camera, gl, plan, fit, zoom]);
+  }, [camera, gl, plan, fit, zoom, azimuth, azimuthWanted]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const ortho = camera as THREE.OrthographicCamera;
     const reach = Math.max(plan.width, plan.depth);
+
+    // Ease toward the wanted angle. A snap would be cheaper and would lose
+    // which way the city just turned, which is the only thing a turn tells you.
+    const drift = azimuthWanted.current - azimuth.current;
+    azimuth.current += Math.abs(drift) < 1e-4 ? drift : drift * Math.min(1, delta * 7);
+    const az = azimuth.current;
+
+    if (held.current.size > 0) {
+      const step = (reach * 0.45 * Math.min(delta, 0.05)) / zoom.current;
+      let sx = 0;
+      let sy = 0;
+      for (const key of held.current) {
+        if (key === 'arrowleft' || key === 'a') sx -= 1;
+        if (key === 'arrowright' || key === 'd') sx += 1;
+        if (key === 'arrowup' || key === 'w') sy -= 1;
+        if (key === 'arrowdown' || key === 's') sy += 1;
+      }
+      if (sx !== 0 || sy !== 0) {
+        // Walking moves the city the way the keys point, which is the opposite
+        // of dragging it — hence the sign, and no, they are not the same thing.
+        const moved = screenToPlan(sx * step, sy * step, az);
+        target.current.x += moved.x;
+        target.current.z += moved.z;
+      }
+    }
+
+    /*
+     * The camera stands on a circle around whatever it is looking at, at the
+     * same height and distance whatever the angle, so turning is a turn rather
+     * than a swoop.
+     */
+    const radius = reach * Math.SQRT2;
     camera.position.set(
-      target.current.x + reach,
+      target.current.x + radius * Math.cos(az),
       reach * 0.85,
-      target.current.z + reach,
+      target.current.z + radius * Math.sin(az),
     );
     camera.lookAt(target.current);
     const wanted = fit * zoom.current;
@@ -412,6 +510,17 @@ export default function CityMap({
   const zoom = useRef(1);
   const nudgeZoom = useCallback((factor: number) => {
     zoom.current = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom.current * factor));
+  }, []);
+
+  /*
+   * Where the camera stands, and where it is going. Quarter-turns only: the
+   * streets are laid out on a square grid, and any other angle leaves the whole
+   * town looking as though it were hung crooked.
+   */
+  const azimuth = useRef(Math.PI / 4);
+  const azimuthWanted = useRef(Math.PI / 4);
+  const turn = useCallback((quarters: number) => {
+    azimuthWanted.current += quarters * (Math.PI / 4);
   }, []);
 
   const [selected, setSelected] = useState<OwnedLot | null>(null);
@@ -453,7 +562,7 @@ export default function CityMap({
           onHover={setHover}
           onSelect={select}
         />
-        <MapControls plan={plan} zoom={zoom} />
+        <MapControls plan={plan} zoom={zoom} azimuth={azimuth} azimuthWanted={azimuthWanted} />
       </Canvas>
 
       {/*
@@ -467,6 +576,17 @@ export default function CityMap({
         </button>
         <button type="button" onClick={() => nudgeZoom(1 / 1.7)} aria-label="Zoom out">
           −
+        </button>
+        {/*
+          * Turning the city is the difference between a picture of a place and
+          * somewhere you are standing. Buttons as well as keys, because a phone
+          * has no Q and E.
+          */}
+        <button type="button" onClick={() => turn(-1)} aria-label="Turn left">
+          ↺
+        </button>
+        <button type="button" onClick={() => turn(1)} aria-label="Turn right">
+          ↻
         </button>
       </div>
 

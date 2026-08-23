@@ -36,6 +36,7 @@ import {
 } from '@/lib/lot-store';
 import { normalizeHandle, normalizeUrl, socialUrl, MAX_LOGO_BYTES } from '@/lib/store-profile';
 import { recordStat, statsFor } from '@/lib/stats';
+import { adSlots, nextBidCents, openBid, settleBid } from '@/lib/ads';
 import { applyOverrides, buildInventory, normalizeSignText } from '@/lib/inventory';
 import { generateLots } from '@/lib/lots';
 import { FACADE_PALETTE } from '@/lib/palette';
@@ -390,6 +391,90 @@ async function main() {
     '49bp. a shop nobody visited reads zero, not null',
     (await statsFor(free[6].address)).views === 0,
   );
+
+  /* ---- Bidding for a vehicle ---- */
+
+  const artwork = Buffer.from(
+    '89504e470d0a1a0a0000000d494844520000000100000001080600000' +
+      '01f15c4890000000a49444154789c6300010000050001' +
+      '0d0a2db40000000049454e44ae426082',
+    'hex',
+  );
+
+  const vehicles = await adSlots();
+  const van = vehicles.find((v) => v.kind === 'van');
+  check('49bq. the three vehicles exist', vehicles.length === 3);
+  check('49br. the van has a floor', (van?.minBidCents ?? 0) === 300, String(van?.minBidCents));
+  check(
+    '49bs. bids step a whole dollar, not a penny',
+    van !== undefined && nextBidCents({ ...van, bidCents: 500 }) === 600,
+  );
+
+  check(
+    '49bt. a bid under the floor is refused',
+    !(await openBid({ kind: 'van', cents: 100, email: BOB, url: 'nike.com', artwork })).ok,
+  );
+  check(
+    '49bu. artwork that is not an image is refused',
+    !(await openBid({ kind: 'van', cents: 300, email: BOB, url: 'nike.com', artwork: Buffer.from('not a png') })).ok,
+  );
+  check(
+    '49bv. a bid on an invented vehicle is refused',
+    !(await openBid({ kind: 'hovercraft', cents: 900, email: BOB, url: 'nike.com', artwork })).ok,
+  );
+
+  const first = await openBid({ kind: 'van', cents: 400, email: BOB, url: 'nike.com', artwork });
+  check('49bw. a good bid is accepted', first.ok, errOf(first));
+
+  check(
+    '49bx. nothing is awarded until the money arrives',
+    (await adSlots()).find((v) => v.kind === 'van')?.bidCents === 0,
+  );
+
+  if (first.ok) {
+    const settled = await settleBid(first.value.id);
+    check('49by. a paid bid wins an empty vehicle', settled.ok && settled.value.won);
+    check('49bz. and it says it did the work', settled.ok && settled.value.fresh);
+    check(
+      '49ca. the vehicle now stands at that bid',
+      (await adSlots()).find((v) => v.kind === 'van')?.bidCents === 400,
+    );
+
+    // The same delivery arriving twice, which Polar does on every sale.
+    const again = await settleBid(first.value.id);
+    check('49cb. settling twice does not do it twice', again.ok && !again.value.fresh);
+    check('49cc. and nobody is displaced by the repeat', again.ok && again.value.displaced === null);
+  }
+
+  /*
+   * The boundary, either side of it. Standing at 400 with a dollar step means
+   * 500 is the first bid that counts and 499 is not — and the first version of
+   * this check asserted that 500 should be refused, which would have made the
+   * minimum unreachable by anybody paying it exactly.
+   */
+  const under = await openBid({ kind: 'van', cents: 499, email: ADA, url: 'nike.com', artwork });
+  check(
+    '49cd. a penny under the step is refused',
+    !under.ok,
+    under.ok ? 'accepted 499 against a standing 400' : '',
+  );
+  const exact = await openBid({ kind: 'van', cents: 500, email: ADA, url: 'nike.com', artwork });
+  check(
+    '49cd1. exactly a dollar more is accepted',
+    exact.ok,
+    exact.ok ? '' : errOf(exact),
+  );
+
+  const over = await openBid({ kind: 'van', cents: 800, email: ADA, url: 'nike.com', artwork });
+  if (over.ok) {
+    const beat = await settleBid(over.value.id);
+    check('49ce. a higher paid bid takes the vehicle', beat.ok && beat.value.won);
+    check(
+      '49cf. and names who was pushed off, so they can be told',
+      beat.ok && beat.value.displaced === BOB,
+      beat.ok ? String(beat.value.displaced) : '',
+    );
+  }
 
   /* ---- Logos ---- */
   const png = Buffer.from(

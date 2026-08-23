@@ -183,7 +183,22 @@ export async function openBid(input: {
  * the record, which is why the row is kept either way.
  */
 export async function settleBid(bidId: string): Promise<
-  BidResult<{ kind: VehicleKind; won: boolean; cents: number; email: string }>
+  BidResult<{
+    kind: VehicleKind;
+    won: boolean;
+    cents: number;
+    email: string;
+    /** Whoever this bid pushed off the vehicle, if it pushed anybody off. */
+    displaced: string | null;
+    /**
+     * Whether this call is the one that settled it.
+     *
+     * Polar sends two events for a single sale. Both reach here, and the second
+     * must be able to say "already done" — otherwise the winner is congratulated
+     * twice and the loser is told twice that they lost, which is worse.
+     */
+    fresh: boolean;
+  }>
 > {
   const db = await getDb();
 
@@ -203,16 +218,31 @@ export async function settleBid(bidId: string): Promise<
   if (!bid) return { ok: false, error: 'No such bid.' };
   if (!isKind(bid.kind)) return { ok: false, error: 'No such vehicle.' };
 
-  // Already settled: report what happened rather than doing it again.
+  /*
+   * Already settled: report what happened rather than doing it again, and
+   * report nobody displaced. Polar sends two events for one sale, and telling
+   * somebody twice that they lost their slot is its own small cruelty.
+   */
   if (bid.paid) {
-    return { ok: true, value: { kind: bid.kind, won: bid.won, cents: Number(bid.cents), email: bid.email } };
+    return {
+      ok: true,
+      value: {
+        kind: bid.kind,
+        won: bid.won,
+        cents: Number(bid.cents),
+        email: bid.email,
+        displaced: null,
+        fresh: false,
+      },
+    };
   }
 
-  const slot = await db.one<{ bid_cents: number; min_bid_cents: number }>(
-    'select bid_cents, min_bid_cents from ad_slots where kind = $1',
+  const slot = await db.one<{ bid_cents: number; min_bid_cents: number; holder_email: string | null }>(
+    'select bid_cents, min_bid_cents, holder_email from ad_slots where kind = $1',
     [bid.kind],
   );
   const standing = Number(slot?.bid_cents ?? 0);
+  const heldBy = slot?.holder_email ?? null;
   const floor = Number(slot?.min_bid_cents ?? 0);
   const cents = Number(bid.cents);
   const won = cents >= floor && cents > standing;
@@ -242,7 +272,14 @@ export async function settleBid(bidId: string): Promise<
     );
   }
 
-  return { ok: true, value: { kind: bid.kind, won, cents, email: bid.email } };
+  /*
+   * Only somebody who actually lost something is displaced: not the winner
+   * outbidding themselves, and not the empty seat on a vehicle nobody held.
+   */
+  const displaced =
+    won && heldBy && heldBy.toLowerCase() !== bid.email.toLowerCase() ? heldBy : null;
+
+  return { ok: true, value: { kind: bid.kind, won, cents, email: bid.email, displaced, fresh: true } };
 }
 
 /** Who held a vehicle before a given moment — the person to tell they lost it. */

@@ -19,8 +19,10 @@
  */
 
 import { createHmac, timingSafeEqual } from 'crypto';
-import { purchaseLotForEmail } from '@/lib/lot-store';
-import { settleBid } from '@/lib/ads';
+import { getOverride, purchaseLotForEmail } from '@/lib/lot-store';
+import { settleBid, VEHICLE_LABEL } from '@/lib/ads';
+import { adWon, lotBought, outbid } from '@/lib/email';
+import { addressSlug } from '@/lib/lots';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -212,10 +214,22 @@ export async function POST(req: Request) {
       console.error(`[polar] PAID BUT UNFULFILLED ${type} bid=${bidId} — ${settled.error}`);
       return OK();
     }
-    const { kind, won, cents, email: bidder } = settled.value;
+    const { kind, won, cents, email: bidder, displaced, fresh } = settled.value;
     console.log(
       `[polar] bid ${bidId} on ${kind} for ${(cents / 100).toFixed(2)} by ${bidder}: ${won ? 'WON' : 'outbid already'} (${type}, key=${reading})`,
     );
+
+    /*
+     * Telling people, which is the whole reason this is not just a database
+     * write. Awaited so a failure is logged against this delivery rather than
+     * disappearing into a promise nobody is holding — but never allowed to
+     * fail the request, because the money has already moved and a retry would
+     * settle the bid all over again.
+     */
+    if (won && fresh) {
+      await adWon(bidder, VEHICLE_LABEL[kind], cents);
+      if (displaced) await outbid(displaced, VEHICLE_LABEL[kind], cents);
+    }
     return OK();
   }
 
@@ -236,6 +250,15 @@ export async function POST(req: Request) {
     return OK();
   }
 
+  /*
+   * Was this lot already held by this buyer before the delivery arrived? If so
+   * this is Polar's second event for one sale, and the purchase below will
+   * change nothing — so the receipt must not be sent a second time.
+   */
+  const before = await getOverride(address);
+  const alreadyTheirs =
+    (before?.ownerEmail ?? '').toLowerCase() === email.trim().toLowerCase();
+
   const result = await purchaseLotForEmail(address, email, 'purchase');
   if (!result.ok) {
     console.error(
@@ -246,5 +269,12 @@ export async function POST(req: Request) {
   }
 
   console.log(`[polar] ${address} sold to ${email} (${type}, key=${reading})`);
+
+  /*
+   * The buyer has no account yet — that is the point of buying without one —
+   * so this message is the only thing that tells them the lot exists and how
+   * to take it over. Without it somebody pays and hears nothing at all.
+   */
+  if (!alreadyTheirs) await lotBought(email, address, addressSlug(address));
   return OK();
 }

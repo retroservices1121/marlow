@@ -19,7 +19,8 @@ import * as THREE from 'three';
 import type { OwnedLot } from '@/lib/inventory';
 import { planCity, type PlannedLot } from '@/lib/cityplan';
 import { DISTRICTS } from '@/lib/lots';
-import { TIME_PALETTES, shade, type TimeOfDay } from '@/lib/palette';
+import { TIME_PALETTES, applyTimeTint, shade, type TimeOfDay } from '@/lib/palette';
+import { subRandom } from '@/lib/hash';
 import LotPreview from './LotPreview';
 
 /*
@@ -260,6 +261,227 @@ function ParcelLines({ planned, zoom }: { planned: PlannedLot[]; zoom: React.Ref
   );
 }
 
+/* ---- The land the town is standing on ---------------------------------- */
+
+const GRASS = '#7BA84F';
+const SAND = '#E6D5A4';
+const WATER = '#4A90C4';
+const FOLIAGE = '#568B42';
+const TRUNK = '#8C6E4F';
+
+/** How far the countryside runs past the last building. */
+const COUNTRY = 1.7;
+
+/**
+ * Where the sea goes.
+ *
+ * The Wharf has been a wharf with nothing to be a wharf of since the day it was
+ * laid out. The water belongs against whichever edge of the city that district
+ * actually sits nearest, rather than an edge picked once and left to be wrong
+ * the moment the districts are re-ordered.
+ */
+function shoreline(plan: ReturnType<typeof planCity>) {
+  const wharf = plan.districts.find((d) => d.district.slug === 'the-wharf');
+  if (!wharf) return null;
+
+  const cx = wharf.x + wharf.w / 2;
+  const cz = wharf.y + wharf.d / 2;
+  const edges = [
+    { side: 'west' as const, distance: cx },
+    { side: 'east' as const, distance: plan.width - cx },
+    { side: 'north' as const, distance: cz },
+    { side: 'south' as const, distance: plan.depth - cz },
+  ];
+  return edges.reduce((nearest, edge) => (edge.distance < nearest.distance ? edge : nearest));
+}
+
+/**
+ * Grass, a beach, the sea, and trees in every gap the streets left.
+ *
+ * A town on a bare grey slab reads as a diagram of a town. The same buildings
+ * standing in open country with water at one end read as somewhere — and the
+ * cost is three planes and two instanced meshes, whatever the size of the city.
+ *
+ * Every tree is placed by the same seeded generator the buildings use, so the
+ * wood outside Garden Quarter is in the same place on every machine and after
+ * every deploy. A landscape that reshuffled itself on each visit would make the
+ * town feel like a screensaver.
+ */
+function Landscape({
+  plan,
+  timeOfDay,
+}: {
+  plan: ReturnType<typeof planCity>;
+  timeOfDay: TimeOfDay;
+}) {
+  const palette = TIME_PALETTES[timeOfDay];
+  const trunks = useRef<THREE.InstancedMesh>(null);
+  const leaves = useRef<THREE.InstancedMesh>(null);
+
+  const shore = useMemo(() => shoreline(plan), [plan]);
+
+  /*
+   * Trees go anywhere the town is not: the countryside around it, and the wide
+   * gaps between districts, which were the emptiest part of the map. Candidates
+   * are tested against every footprint and every road rather than placed by
+   * hand, so nothing ends up growing through a shopfront.
+   */
+  const trees = useMemo(() => {
+    const spread = 0.5 * (COUNTRY - 1);
+    const minX = -plan.width * spread;
+    const minZ = -plan.depth * spread;
+    const spanX = plan.width * COUNTRY;
+    const spanZ = plan.depth * COUNTRY;
+
+    const clear = 70;
+    const placed: { x: number; z: number; scale: number }[] = [];
+
+    for (let i = 0; i < 1600 && placed.length < 420; i++) {
+      const rng = subRandom('marlow-landscape', `tree:${i}`);
+      const x = minX + rng.range(0, spanX);
+      const z = minZ + rng.range(0, spanZ);
+
+      // Never in the sea, and never on the beach either.
+      if (shore) {
+        if (shore.side === 'west' && x < -60) continue;
+        if (shore.side === 'east' && x > plan.width + 60) continue;
+        if (shore.side === 'north' && z < -60) continue;
+        if (shore.side === 'south' && z > plan.depth + 60) continue;
+      }
+
+      const onBuilding = plan.lots.some(
+        (l) => x > l.x - clear && x < l.x + l.w + clear && z > l.y - clear && z < l.y + l.d + clear,
+      );
+      if (onBuilding) continue;
+
+      const onRoad = plan.roads.some(
+        (r) => x > r.x - 30 && x < r.x + r.w + 30 && z > r.y - 30 && z < r.y + r.d + 30,
+      );
+      if (onRoad) continue;
+
+      placed.push({ x, z, scale: rng.range(0.72, 1.35) });
+    }
+    return placed;
+  }, [plan, shore]);
+
+  useEffect(() => {
+    const trunk = trunks.current;
+    const leaf = leaves.current;
+    if (!trunk || !leaf) return;
+
+    const matrix = new THREE.Matrix4();
+    const flat = new THREE.Quaternion();
+
+    trees.forEach((tree, i) => {
+      const height = 150 * tree.scale;
+      const stem = height * 0.34;
+
+      matrix.compose(
+        new THREE.Vector3(tree.x, stem / 2, tree.z),
+        flat,
+        new THREE.Vector3(14 * tree.scale, stem, 14 * tree.scale),
+      );
+      trunk.setMatrixAt(i, matrix);
+
+      matrix.compose(
+        new THREE.Vector3(tree.x, stem + (height - stem) / 2, tree.z),
+        flat,
+        new THREE.Vector3(78 * tree.scale, height - stem, 78 * tree.scale),
+      );
+      leaf.setMatrixAt(i, matrix);
+    });
+
+    trunk.instanceMatrix.needsUpdate = true;
+    leaf.instanceMatrix.needsUpdate = true;
+    trunk.computeBoundingSphere();
+    leaf.computeBoundingSphere();
+  }, [trees]);
+
+  // The sea runs off past where anybody can see, so it has no far edge to give
+  // the illusion away.
+  const sea = Math.max(plan.width, plan.depth) * 2.2;
+  const beach = 190;
+  const acrossShore = shore?.side === 'west' || shore?.side === 'east';
+
+  const seaX = !shore
+    ? 0
+    : shore.side === 'west'
+      ? -beach - sea / 2
+      : shore.side === 'east'
+        ? plan.width + beach + sea / 2
+        : plan.width / 2;
+  const seaZ = !shore
+    ? 0
+    : shore.side === 'north'
+      ? -beach - sea / 2
+      : shore.side === 'south'
+        ? plan.depth + beach + sea / 2
+        : plan.depth / 2;
+
+  const beachX = !shore
+    ? 0
+    : shore.side === 'west'
+      ? -beach / 2
+      : shore.side === 'east'
+        ? plan.width + beach / 2
+        : plan.width / 2;
+  const beachZ = !shore
+    ? 0
+    : shore.side === 'north'
+      ? -beach / 2
+      : shore.side === 'south'
+        ? plan.depth + beach / 2
+        : plan.depth / 2;
+
+  return (
+    <group>
+      {/* Open country, under everything. */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[plan.width / 2, -2, plan.depth / 2]}
+        receiveShadow
+      >
+        <planeGeometry args={[plan.width * COUNTRY * 2, plan.depth * COUNTRY * 2]} />
+        <meshLambertMaterial color={applyTimeTint(GRASS, palette)} />
+      </mesh>
+
+      {shore && (
+        <>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[beachX, -1.4, beachZ]} receiveShadow>
+            <planeGeometry
+              args={[
+                acrossShore ? beach : plan.width * COUNTRY * 2,
+                acrossShore ? plan.depth * COUNTRY * 2 : beach,
+              ]}
+            />
+            <meshLambertMaterial color={applyTimeTint(SAND, palette)} />
+          </mesh>
+
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[seaX, -1.2, seaZ]}>
+            <planeGeometry args={[acrossShore ? sea : sea * 2, acrossShore ? sea * 2 : sea]} />
+            <meshLambertMaterial color={applyTimeTint(WATER, palette)} />
+          </mesh>
+        </>
+      )}
+
+      <instancedMesh ref={trunks} args={[undefined, undefined, trees.length]} raycast={() => null}>
+        <cylinderGeometry args={[0.5, 0.5, 1, 5]} />
+        <meshLambertMaterial color={applyTimeTint(TRUNK, palette)} />
+      </instancedMesh>
+
+      <instancedMesh
+        ref={leaves}
+        args={[undefined, undefined, trees.length]}
+        castShadow
+        raycast={() => null}
+      >
+        <coneGeometry args={[0.5, 1, 7]} />
+        <meshLambertMaterial color={applyTimeTint(FOLIAGE, palette)} />
+      </instancedMesh>
+    </group>
+  );
+}
+
 function Ground({
   plan,
   timeOfDay,
@@ -270,12 +492,13 @@ function Ground({
   const palette = TIME_PALETTES[timeOfDay];
   return (
     <group>
+      {/* Pavement, only as far as the town goes — grass takes over beyond it. */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[plan.width / 2, -1, plan.depth / 2]}
         receiveShadow
       >
-        <planeGeometry args={[plan.width * 2.4, plan.depth * 2.4]} />
+        <planeGeometry args={[plan.width * 1.06, plan.depth * 1.06]} />
         <meshLambertMaterial color={shade(palette.sidewalk, 0.34)} />
       </mesh>
 
@@ -662,6 +885,7 @@ export default function CityMap({
           shadow-camera-top={reach}
           shadow-camera-bottom={-reach}
         />
+        <Landscape plan={plan} timeOfDay={timeOfDay} />
         <Ground plan={plan} timeOfDay={timeOfDay} />
         <ParcelLines planned={plan.lots} zoom={zoom} />
         <Buildings

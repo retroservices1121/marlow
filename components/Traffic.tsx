@@ -20,7 +20,9 @@
  */
 
 import Vehicle, { VEHICLE_SIZE, type VehicleKind } from './Vehicle';
-import type { AdSlot } from '@/lib/ads';
+import { nextBidCents, type AdSlot } from '@/lib/ads';
+import { formatPrice } from '@/lib/pricing';
+import { CORNER_RADIUS, STROKE_WIDTH } from '@/lib/palette';
 import { applyTimeTint, type TimePalette } from '@/lib/palette';
 
 /** Body colours, from the town's own palette. */
@@ -48,6 +50,61 @@ const SPEED = 240;
 
 /** How far behind the last vehicle the convoy starts, so it enters cleanly. */
 const RUN_UP = 1100;
+
+/**
+ * A tag over a vehicle, inviting somebody to take it off its rider.
+ *
+ * Only over vehicles that are actually taken. An empty one already says YOUR
+ * AD HERE across its whole side, and hanging "outbid me" over nobody would be
+ * asking people to compete with an empty seat.
+ *
+ * It carries the number, because "outbid me" without a price is a dare and
+ * "outbid me for $11" is an offer. Sits in the band above the road and below
+ * the shopfronts, where the only thing it can cross is a lamppost.
+ */
+function OutbidTag({
+  cents,
+  stroke,
+  width,
+  top,
+}: {
+  cents: number;
+  stroke: string;
+  width: number;
+  top: number;
+}) {
+  const label = `OUTBID ME · ${formatPrice(cents)}`;
+  const w = 148;
+  const h = 26;
+  const x = width / 2 - w / 2;
+  const y = top - h - 12;
+
+  return (
+    <g className="mw-outbid">
+      <rect x={x} y={y} width={w} height={h} rx={CORNER_RADIUS} fill="#F5CE3E" stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* A pointer, so the tag belongs to the vehicle under it. */}
+      <polygon
+        points={`${width / 2 - 7},${y + h} ${width / 2 + 7},${y + h} ${width / 2},${y + h + 9}`}
+        fill="#F5CE3E"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinejoin="round"
+      />
+      <text
+        x={width / 2}
+        y={y + h / 2 + 5}
+        textAnchor="middle"
+        fontSize={13}
+        fontWeight={600}
+        fill="#1A1A1A"
+        textLength={w - 16}
+        lengthAdjust="spacingAndGlyphs"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
 
 export default function Traffic({
   slots,
@@ -107,6 +164,22 @@ export default function Traffic({
             ) : (
               // An empty panel is itself the advertisement for the empty panel.
               <a href="/ads">{drawn}</a>
+            )}
+
+            {/*
+              * The tag is a sibling of the vehicle, never inside it: the
+              * vehicle leads to the advertiser and the tag leads to the
+              * auction, and a link inside a link is neither.
+              */}
+            {slot?.taken && (
+              <a href="/ads">
+                <OutbidTag
+                  cents={nextBidCents(slot)}
+                  stroke={palette.stroke}
+                  width={size.width}
+                  top={-size.height}
+                />
+              </a>
             )}
           </g>
         );

@@ -71,8 +71,8 @@ if (!main) throw new Error('no main street');
 const lots = generateLots([{ ...main, count: 9 }]);
 
 const slots: AdSlot[] = [
-  { kind: 'led', minBidCents: 1000, bidCents: 0, taken: false, url: null, adUrl: null },
-  { kind: 'pickup', minBidCents: 500, bidCents: 0, taken: false, url: null, adUrl: null },
+  { kind: 'led', minBidCents: 1000, bidCents: 0, taken: true, url: 'https://example.com', adUrl: null },
+  { kind: 'pickup', minBidCents: 500, bidCents: 1200, taken: true, url: 'https://example.com', adUrl: null },
   { kind: 'van', minBidCents: 300, bidCents: 0, taken: false, url: null, adUrl: null },
 ];
 

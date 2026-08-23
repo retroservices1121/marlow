@@ -36,6 +36,12 @@ const UNSOLD = '#EDE8DA';
  */
 const UNSOLD_HEIGHT = 112;
 
+/** A four-sided cone is a pyramid, but points at a corner until it is turned. */
+const ROOF_TURN = new THREE.Quaternion().setFromAxisAngle(
+  new THREE.Vector3(0, 1, 0),
+  Math.PI / 4,
+);
+
 type Hover = { lot: OwnedLot; screenX: number; screenY: number } | null;
 
 function Buildings({
@@ -49,69 +55,156 @@ function Buildings({
   onHover: (hover: Hover) => void;
   onSelect: (lot: OwnedLot) => void;
 }) {
-  const mesh = useRef<THREE.InstancedMesh>(null);
+  const bodies = useRef<THREE.InstancedMesh>(null);
+  const roofs = useRef<THREE.InstancedMesh>(null);
+  const fronts = useRef<THREE.InstancedMesh>(null);
   const palette = TIME_PALETTES[timeOfDay];
 
   /*
-   * Position, size and colour baked once. An empty lot is a low pale slab and a
-   * taken one stands at its full height in its owner's colour, so how full the
-   * city is reads instantly from across the whole map.
+   * Three meshes rather than one, and it is the difference between a town and a
+   * bar chart.
+   *
+   * The map used to draw every lot as a plain box, which threw away the only
+   * thing Marlow has that a grid of plots does not: these are shopfronts, with
+   * roofs and doors and a colour over the window. A cube says "a quantity". A
+   * cube with a pitched roof and a bright band along its front says "a shop",
+   * from four hundred units up, at a glance.
+   *
+   * Still three draw calls for a thousand buildings, because each is one
+   * instanced mesh. Unsold lots get a body only — no roof, no shopfront — so
+   * what is taken and what is empty still reads instantly from across the city.
    */
   useEffect(() => {
-    const instanced = mesh.current;
-    if (!instanced) return;
+    const body = bodies.current;
+    const roof = roofs.current;
+    const front = fronts.current;
+    if (!body || !roof || !front) return;
+
     const matrix = new THREE.Matrix4();
     const colour = new THREE.Color();
+    const hidden = new THREE.Vector3(0, 0, 0);
+    const nowhere = new THREE.Vector3(0, -100000, 0);
+    const flat = new THREE.Quaternion();
 
     planned.forEach((item, i) => {
       const lot = item.lot as OwnedLot;
       const taken = lot.claimed;
       const height = taken ? item.height : UNSOLD_HEIGHT;
+      const cx = item.x + item.w / 2;
+      const cz = item.y + item.d / 2;
 
       matrix.compose(
-        new THREE.Vector3(item.x + item.w / 2, height / 2, item.y + item.d / 2),
-        new THREE.Quaternion(),
+        new THREE.Vector3(cx, height / 2, cz),
+        flat,
         new THREE.Vector3(item.w, height, item.d),
       );
-      instanced.setMatrixAt(i, matrix);
-      instanced.setColorAt(i, colour.set(taken ? lot.facadeColor : UNSOLD));
+      body.setMatrixAt(i, matrix);
+      body.setColorAt(i, colour.set(taken ? lot.facadeColor : UNSOLD));
+
+      /*
+       * A roof, on the kinds of building that have one. Towers and warehouses
+       * are flat-topped in the street view too, so giving them a point here
+       * would make the map disagree with the place it is a map of.
+       */
+      const pitched = taken && (lot.buildingType === 'storefront' || lot.buildingType === 'civic');
+      if (pitched) {
+        const rise = Math.min(item.w, item.d) * 0.42;
+        matrix.compose(
+          new THREE.Vector3(cx, height + rise / 2, cz),
+          ROOF_TURN,
+          new THREE.Vector3(Math.max(item.w, item.d) * 0.78, rise, Math.max(item.w, item.d) * 0.78),
+        );
+        roof.setMatrixAt(i, matrix);
+        roof.setColorAt(i, colour.set(shade(lot.facadeColor, 0.22)));
+      } else {
+        matrix.compose(nowhere, flat, hidden);
+        roof.setMatrixAt(i, matrix);
+        roof.setColorAt(i, colour.set(UNSOLD));
+      }
+
+      /*
+       * The shopfront: a band of the owner's accent colour along the ground
+       * floor, standing very slightly proud so it catches the light rather than
+       * fighting the wall for the same pixels.
+       */
+      if (taken) {
+        const bandHeight = Math.min(height * 0.34, 78);
+        matrix.compose(
+          new THREE.Vector3(cx, bandHeight / 2, cz),
+          flat,
+          new THREE.Vector3(item.w * 1.035, bandHeight, item.d * 1.035),
+        );
+        front.setMatrixAt(i, matrix);
+        front.setColorAt(i, colour.set(lot.accentColor));
+      } else {
+        matrix.compose(nowhere, flat, hidden);
+        front.setMatrixAt(i, matrix);
+        front.setColorAt(i, colour.set(UNSOLD));
+      }
     });
 
-    instanced.instanceMatrix.needsUpdate = true;
-    if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true;
-    /*
-     * Raycasting and frustum culling both test the instanced mesh's bounding
-     * sphere before looking at any instance. Left at the unit box the geometry
-     * was built from, every pointer ray misses the whole city.
-     */
-    instanced.computeBoundingSphere();
+    for (const mesh of [body, roof, front]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      /*
+       * Raycasting and frustum culling both test the bounding sphere before
+       * looking at any instance. Left at the unit box the geometry was built
+       * from, every pointer ray misses the whole city.
+       */
+      mesh.computeBoundingSphere();
+    }
   }, [planned, palette]);
 
   return (
-    <instancedMesh
-      ref={mesh}
-      args={[undefined, undefined, planned.length]}
-      castShadow
-      receiveShadow
-      onPointerMove={(e) => {
-        e.stopPropagation();
-        if (e.instanceId === undefined) return;
-        onHover({
-          lot: planned[e.instanceId].lot as OwnedLot,
-          screenX: e.nativeEvent.offsetX,
-          screenY: e.nativeEvent.offsetY,
-        });
-      }}
-      onPointerOut={() => onHover(null)}
-      onClick={(e) => {
-        e.stopPropagation();
-        if (e.instanceId === undefined) return;
-        onSelect(planned[e.instanceId].lot as OwnedLot);
-      }}
-    >
-      <boxGeometry args={[1, 1, 1]} />
-      <meshLambertMaterial />
-    </instancedMesh>
+    <>
+      <instancedMesh
+        ref={bodies}
+        args={[undefined, undefined, planned.length]}
+        castShadow
+        receiveShadow
+        onPointerMove={(e) => {
+          e.stopPropagation();
+          if (e.instanceId === undefined) return;
+          onHover({
+            lot: planned[e.instanceId].lot as OwnedLot,
+            screenX: e.nativeEvent.offsetX,
+            screenY: e.nativeEvent.offsetY,
+          });
+        }}
+        onPointerOut={() => onHover(null)}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (e.instanceId === undefined) return;
+          onSelect(planned[e.instanceId].lot as OwnedLot);
+        }}
+      >
+        <boxGeometry args={[1, 1, 1]} />
+        <meshLambertMaterial />
+      </instancedMesh>
+
+      {/* Roofs and shopfronts are scenery: pointer events belong to the body,
+          so a click means the same thing wherever on a building it lands. */}
+      <instancedMesh
+        ref={roofs}
+        args={[undefined, undefined, planned.length]}
+        castShadow
+        raycast={() => null}
+      >
+        <coneGeometry args={[0.72, 1, 4]} />
+        <meshLambertMaterial />
+      </instancedMesh>
+
+      <instancedMesh
+        ref={fronts}
+        args={[undefined, undefined, planned.length]}
+        castShadow
+        receiveShadow
+        raycast={() => null}
+      >
+        <boxGeometry args={[1, 1, 1]} />
+        <meshLambertMaterial />
+      </instancedMesh>
+    </>
   );
 }
 
@@ -542,10 +635,16 @@ export default function CityMap({
         style={{ background: palette.sky, position: 'absolute', inset: 0 }}
         dpr={[1, 2]}
       >
-        <ambientLight intensity={0.78} />
+        {/*
+          * Less fill, more sun. At 0.78 ambient the light reached every face
+          * almost equally, so a thousand boxes had no form and the city read
+          * flat however it was turned. Shape comes from the difference between
+          * the side the sun is on and the side it is not.
+          */}
+        <ambientLight intensity={0.5} />
         <directionalLight
           position={[reach, reach * 1.4, reach * 0.4]}
-          intensity={0.95}
+          intensity={1.35}
           color="#FFF6E5"
           castShadow
           shadow-mapSize={[2048, 2048]}

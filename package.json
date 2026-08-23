@@ -15,6 +15,7 @@
     "verify:polar": "node scripts/verify-polar.js",
     "polar:sync-prices": "node scripts/polar-sync-prices.js",
     "polar:reconcile": "node scripts/polar-reconcile.js",
+    "email:test": "node scripts/email-test.js",
     "db:migrate": "node scripts/migrate.js",
     "grant": "node scripts/grant.js",
     "transfer": "node scripts/transfer.js",

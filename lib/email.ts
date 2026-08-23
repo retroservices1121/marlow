@@ -63,10 +63,17 @@ export async function send(message: {
     });
 
     if (!response.ok) {
-      // The address is logged because a bounce nobody sees is the same as no
-      // email at all, and this is the only trace there will be.
+      /*
+       * The reason, not just the number. "HTTP 403" sent me to the API to ask
+       * what was wrong; the body said "the marlow.town domain is not verified"
+       * and answered it outright. A log line that cannot be acted on is barely
+       * better than silence, and this is the only trace there will be.
+       *
+       * Truncated, because a provider's error page should not fill the log.
+       */
+      const reason = (await response.text().catch(() => '')).slice(0, 300);
       console.error(
-        `[email] "${message.subject}" to ${message.to} refused: HTTP ${response.status}`,
+        `[email] "${message.subject}" to ${message.to} refused: HTTP ${response.status} ${reason}`,
       );
       return false;
     }

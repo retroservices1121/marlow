@@ -1,5 +1,6 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import Nav from '@/components/Nav';
 import './globals.css';
 
@@ -15,34 +16,63 @@ import './globals.css';
  * absolute URLs — relative ones are ignored by every service that unfurls a
  * link.
  */
-export const metadata: Metadata = {
-  metadataBase: new URL(process.env.MARLOW_URL ?? 'https://marlow.town'),
-  /*
-   * The town answers on two hostnames, so every page has to say which one is
-   * really it. Without this, two identical copies compete with each other in
-   * search and neither wins outright. Resolved against `metadataBase`, so it
-   * always names marlow.town whichever door served the page.
-   */
-  alternates: { canonical: './' },
-  title: 'Marlow — your own virtual storefront',
-  description:
-    'Own a virtual storefront in Marlow, a hand-drawn town of 1,000 addresses. Put your sign over the door and your links inside. From $15.',
-  openGraph: {
-    type: 'website',
-    siteName: 'Marlow',
-    images: ['/card.png'],
-    title: 'Marlow — your own virtual storefront',
+/**
+ * What a link to Marlow says about itself.
+ *
+ * This text is the shop window everywhere the town is not: search results, a
+ * pasted link, a shared post.
+ *
+ * Built per request rather than declared once, so the card image is served from
+ * whichever door the link came in by. A page on marlow.lol pointing its image
+ * at marlow.town works, but it asks every unfurler to fetch across origins for
+ * no reason, and the one thing a card must not do is fail quietly.
+ *
+ * The canonical stays marlow.town whichever host answered — that is the whole
+ * point of it, and the two must not follow the same rule.
+ */
+const CANONICAL = 'https://marlow.town';
+const TITLE = 'Marlow — your own virtual storefront';
+const PITCH =
+  'A hand-drawn town of 1,000 shopfronts. Take an address, put your sign over the door, and send people on to your site. From $15.';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const host = (await headers()).get('host')?.toLowerCase().split(':')[0] ?? 'marlow.town';
+  const known = ['marlow.town', 'marlow.lol', 'www.marlow.lol'].includes(host);
+  const origin = known ? `https://${host}` : CANONICAL;
+
+  return {
+    /*
+     * Always the canonical host, never the one that answered. `alternates`
+     * below resolves against this, and a canonical that followed the door you
+     * came in by would point marlow.lol at itself — which is the opposite of
+     * what it is for. Only the card image follows the host, and it says so
+     * absolutely rather than leaning on this.
+     */
+    metadataBase: new URL(CANONICAL),
+    title: TITLE,
     description:
-      'A hand-drawn town of 1,000 shopfronts. Take an address, put your sign over the door, and send people on to your site. From $15.',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    images: ['/card.png'],
-    title: 'Marlow — your own virtual storefront',
-    description:
-      'A hand-drawn town of 1,000 shopfronts. Take an address, put your sign over the door, and send people on to your site. From $15.',
-  },
-};
+      'Own a virtual storefront in Marlow, a hand-drawn town of 1,000 addresses. Put your sign over the door and your links inside. From $15.',
+    /*
+     * The town answers on two hostnames, so every page has to say which one is
+     * really it. Without this, two identical copies compete with each other in
+     * search and neither wins outright.
+     */
+    alternates: { canonical: './' },
+    openGraph: {
+      type: 'website',
+      siteName: 'Marlow',
+      title: TITLE,
+      description: PITCH,
+      images: [`${origin}/card.png`],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: TITLE,
+      description: PITCH,
+      images: [`${origin}/card.png`],
+    },
+  };
+}
 
 export const viewport: Viewport = {
   width: 'device-width',

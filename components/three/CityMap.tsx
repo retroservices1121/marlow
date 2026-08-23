@@ -34,8 +34,6 @@ const UNSOLD = '#EDE8DA';
  * needs to be able to click. Still well below a real building, so the contrast
  * that shows how full the city is survives.
  */
-const UNSOLD_HEIGHT = 112;
-
 /** A four-sided cone is a pyramid, but points at a corner until it is turned. */
 const ROOF_TURN = new THREE.Quaternion().setFromAxisAngle(
   new THREE.Vector3(0, 1, 0),
@@ -71,8 +69,14 @@ function Buildings({
    * from four hundred units up, at a glance.
    *
    * Still three draw calls for a thousand buildings, because each is one
-   * instanced mesh. Unsold lots get a body only — no roof, no shopfront — so
-   * what is taken and what is empty still reads instantly from across the city.
+   * instanced mesh.
+   *
+   * Unsold lots are built too, at their full height and with their own roof,
+   * just unpainted. A town with 997 empty plots looked like a car park with
+   * three shops in it, and no amount of detail on the sold ones fixes a map
+   * that is mostly gravel. Built-but-unpainted reads as a town from the first
+   * day, and colour still says what is taken: an owner's facade and the bright
+   * band of their shopfront against a street of bare stone.
    */
   useEffect(() => {
     const body = bodies.current;
@@ -89,7 +93,7 @@ function Buildings({
     planned.forEach((item, i) => {
       const lot = item.lot as OwnedLot;
       const taken = lot.claimed;
-      const height = taken ? item.height : UNSOLD_HEIGHT;
+      const height = item.height;
       const cx = item.x + item.w / 2;
       const cz = item.y + item.d / 2;
 
@@ -105,8 +109,11 @@ function Buildings({
        * A roof, on the kinds of building that have one. Towers and warehouses
        * are flat-topped in the street view too, so giving them a point here
        * would make the map disagree with the place it is a map of.
+       *
+       * Unsold buildings get theirs as well. The silhouette is what makes a
+       * skyline; withholding it was what made the empty half look like rubble.
        */
-      const pitched = taken && (lot.buildingType === 'storefront' || lot.buildingType === 'civic');
+      const pitched = lot.buildingType === 'storefront' || lot.buildingType === 'civic';
       if (pitched) {
         const rise = Math.min(item.w, item.d) * 0.42;
         matrix.compose(
@@ -115,7 +122,9 @@ function Buildings({
           new THREE.Vector3(Math.max(item.w, item.d) * 0.78, rise, Math.max(item.w, item.d) * 0.78),
         );
         roof.setMatrixAt(i, matrix);
-        roof.setColorAt(i, colour.set(shade(lot.facadeColor, 0.22)));
+        // A shade darker than its walls either way, so the roof reads as a roof
+        // rather than melting into the building under it.
+        roof.setColorAt(i, colour.set(shade(taken ? lot.facadeColor : UNSOLD, 0.14)));
       } else {
         matrix.compose(nowhere, flat, hidden);
         roof.setMatrixAt(i, matrix);

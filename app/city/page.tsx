@@ -32,7 +32,7 @@ export default async function CityPage() {
       </CityLoader>
 
       <p className="mw-meta">
-        Tall and coloured is taken; low and pale is for sale.{' '}
+        Painted is taken; bare stone is still for sale.{' '}
         <Link href="/streets">Browse every address</Link> or{' '}
         <Link href="/street/main-street">walk a street</Link>.
       </p>

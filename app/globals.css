@@ -1660,3 +1660,41 @@ body {
 .mw-bid button {
   justify-self: start;
 }
+
+/* ---- How busy the town is --------------------------------------------- */
+
+.mw-busy {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #4a4a45;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.mw-busy strong {
+  font-weight: 600;
+  color: var(--mw-ink);
+}
+
+.mw-busy-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A steady dot, not a blinking one: this sits above the page title on every
+   visit, and something flashing there forever is an irritation, not a signal. */
+.mw-busy-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4fa382;
+  border: 2px solid var(--mw-ink);
+  flex: none;
+}
+
+.mw-busy-sep {
+  color: #9a9a92;
+}

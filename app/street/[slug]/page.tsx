@@ -10,11 +10,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import StreetView from '@/components/StreetView';
 import FollowOnX from '@/components/FollowOnX';
+import TownBusy from '@/components/TownBusy';
 import ShopDirectory from '@/components/ShopDirectory';
 import MarlowIntro from '@/components/MarlowIntro';
 import { buildInventory } from '@/lib/inventory';
 import { getOverrides, isRealAddress, logoHashesFor, openShops } from '@/lib/lot-store';
 import { adSlots } from '@/lib/ads';
+import { townBusyness } from '@/lib/visitors';
 import { DISTRICTS, STREETS, junctionsOn, parentStreet, streetBySlug } from '@/lib/lots';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +52,7 @@ export default async function StreetPage({
    * going past is a side street that looks lived in.
    */
   const ads = await adSlots();
+  const busy = await townBusyness();
   const lots = everywhere.filter((l) => l.street === street.name);
   const takenEverywhere = everywhere.filter((l) => l.claimed).length;
 
@@ -79,6 +82,7 @@ export default async function StreetPage({
   return (
     <main className="mw-page">
       <header className="mw-header">
+        <TownBusy busy={busy} />
         <h1 className="mw-title">{street.name}</h1>
         <p className="mw-sub">
           {lots.length} addresses · {forSale} for sale.{' '}

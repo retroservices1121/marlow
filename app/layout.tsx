@@ -65,13 +65,17 @@ export const viewport: Viewport = {
  *
  * In the file it is reviewable, it travels with the code, and it cannot be one
  * forgotten rebuild out of date — `NEXT_PUBLIC_` values are baked in at build
- * time, so setting one and restarting changes nothing. The env var still
- * overrides, for a staging site that should report separately.
+ * time, so setting one and restarting changes nothing.
+ *
+ * There is deliberately no environment override any more. There was one, and it
+ * held a stale id that quietly beat the correct value sitting right here, which
+ * is the same bug twice from the same source. A value with exactly one home
+ * cannot disagree with itself.
  *
  * DataFast turns itself off on localhost, so this never counts our own walking
  * about the town.
  */
-const DATAFAST_ID = process.env.NEXT_PUBLIC_DATAFAST_ID ?? 'dfid_ii1m3WadIJpQo7KtlxnCy';
+const DATAFAST_ID = 'dfid_ii1m3WadIJpQo7KtlxnCy';
 const DATAFAST_DOMAIN = process.env.NEXT_PUBLIC_DATAFAST_DOMAIN ?? 'marlow.town';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -25,8 +25,8 @@ const CACHE_SECONDS = 60;
 export type TownBusyness = {
   /** People on the site right now. */
   online: number;
-  /** People who have visited today. */
-  today: number;
+  /** People who have visited over the last week. */
+  week: number;
 };
 
 /**
@@ -94,9 +94,26 @@ async function ask(path: string): Promise<unknown | null> {
   }
 }
 
-/** Today, in UTC — one town, one clock. */
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * How many days the visitor count covers.
+ *
+ * A week rather than today, because "today" is a UTC calendar day and it
+ * collapses to nothing at UTC midnight — which is early evening in the
+ * Americas, so the number disappeared from the busiest hours of the day and
+ * crept back overnight. It looked like a mobile fault and was neither mobile
+ * nor a fault: the count really was zero, and the rule that hides a zero was
+ * doing its job.
+ *
+ * A rolling week never empties once there is any traffic at all, and it is a
+ * fairer picture of a town than whatever has happened since midnight.
+ */
+const WINDOW_DAYS = 7;
+
+/** A UTC date, `days` ago. One town, one clock. */
+function utcDay(daysAgo = 0): string {
+  const when = new Date();
+  when.setUTCDate(when.getUTCDate() - daysAgo);
+  return when.toISOString().slice(0, 10);
 }
 
 /**
@@ -108,10 +125,9 @@ function today(): string {
 export async function townBusyness(): Promise<TownBusyness | null> {
   if (!process.env.DATAFAST_API_KEY) return null;
 
-  const day = today();
   const [live, overview] = await Promise.all([
     ask('/analytics/realtime'),
-    ask(`/analytics/overview?startAt=${day}&endAt=${day}`),
+    ask(`/analytics/overview?startAt=${utcDay(WINDOW_DAYS - 1)}&endAt=${utcDay()}`),
   ]);
 
   const online = findCount(live, ['visitors', 'activeVisitors', 'active_visitors', 'count', 'realtime']);
@@ -121,6 +137,6 @@ export async function townBusyness(): Promise<TownBusyness | null> {
 
   return {
     online: Math.max(0, online ?? 0),
-    today: Math.max(0, visitors ?? 0),
+    week: Math.max(0, visitors ?? 0),
   };
 }

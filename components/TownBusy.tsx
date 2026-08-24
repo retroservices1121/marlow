@@ -18,8 +18,8 @@ export default function TownBusy({ busy }: { busy: TownBusyness | null }) {
   if (!busy) return null;
 
   const showOnline = busy.online > 0;
-  const showToday = busy.today > 0;
-  if (!showOnline && !showToday) return null;
+  const showWeek = busy.week > 0;
+  if (!showOnline && !showWeek) return null;
 
   return (
     <p className="mw-busy" role="status">
@@ -30,11 +30,11 @@ export default function TownBusy({ busy }: { busy: TownBusyness | null }) {
           {busy.online === 1 ? 'person' : 'people'} in Marlow now
         </span>
       )}
-      {showOnline && showToday && <span className="mw-busy-sep"> · </span>}
-      {showToday && (
+      {showOnline && showWeek && <span className="mw-busy-sep"> · </span>}
+      {showWeek && (
         <span>
-          <strong>{busy.today.toLocaleString()}</strong>{' '}
-          {busy.today === 1 ? 'visit' : 'visits'}
+          <strong>{busy.week.toLocaleString()}</strong>{' '}
+          {busy.week === 1 ? 'visit' : 'visits'} this week
         </span>
       )}
     </p>

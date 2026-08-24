@@ -1,6 +1,6 @@
 # Marlow
 
-A hand-drawn town, rendered as one inline SVG, where every building belongs to
+A town rendered as one inline SVG, where every building belongs to
 somebody. 120 lots across four streets: claim an empty one and choose the sign,
 the colours and what kind of building goes up.
 

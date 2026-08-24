@@ -4,23 +4,14 @@ import { headers } from 'next/headers';
 import Nav from '@/components/Nav';
 import './globals.css';
 
-/*
- * What a link to Marlow says about itself.
- *
- * This text is the shop window everywhere the town is not: search results, a
- * pasted link, a shared post. "A hand-drawn town where every building belongs
- * to somebody" described the thing without ever saying what it is for, so
- * somebody seeing it cold had no idea they could buy anything.
- *
- * `metadataBase` is what makes the icon and any social image resolve to
- * absolute URLs — relative ones are ignored by every service that unfurls a
- * link.
- */
 /**
  * What a link to Marlow says about itself.
  *
  * This text is the shop window everywhere the town is not: search results, a
- * pasted link, a shared post.
+ * pasted link, a shared post. It has to say what Marlow is for, in the words
+ * somebody would use before they knew it existed — and only things that are
+ * true of it, which ruled out calling the place hand-drawn when every line of
+ * it is drawn by the renderer.
  *
  * Built per request rather than declared once, so the card image is served from
  * whichever door the link came in by. A page on marlow.lol pointing its image
@@ -33,7 +24,7 @@ import './globals.css';
 const CANONICAL = 'https://marlow.town';
 const TITLE = 'Marlow — your own virtual storefront';
 const PITCH =
-  'A hand-drawn town of 1,000 shopfronts. Take an address, put your sign over the door, and send people on to your site. From $15.';
+  '1,000 shopfronts on streets you can actually walk down. Take an address, put your sign over the door, and send visitors on to your site. From $15.';
 
 export async function generateMetadata(): Promise<Metadata> {
   const host = (await headers()).get('host')?.toLowerCase().split(':')[0] ?? 'marlow.town';
@@ -51,7 +42,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(CANONICAL),
     title: TITLE,
     description:
-      'Own a virtual storefront in Marlow, a hand-drawn town of 1,000 addresses. Put your sign over the door and your links inside. From $15.',
+      'Own a virtual storefront in Marlow, a town of 1,000 addresses on streets you can walk down. Put your sign over the door and your links inside. From $15.',
     /*
      * The town answers on two hostnames, so every page has to say which one is
      * really it. Without this, two identical copies compete with each other in

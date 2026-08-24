@@ -25,7 +25,7 @@
 
 import { CORNER_RADIUS, STROKE_WIDTH } from '@/lib/palette';
 
-export type VehicleKind = 'led' | 'pickup' | 'van';
+export type VehicleKind = 'led' | 'pickup' | 'van' | 'blimp';
 
 export type VehicleProps = {
   kind: VehicleKind;
@@ -49,6 +49,7 @@ const INK = { strokeWidth: STROKE_WIDTH, strokeLinejoin: 'round' as const };
  * far to drive them before they are off the end.
  */
 export const VEHICLE_SIZE: Record<VehicleKind, { width: number; height: number }> = {
+  blimp: { width: 330, height: 132 },
   led: { width: 250, height: 82 },
   pickup: { width: 196, height: 64 },
   van: { width: 158, height: 50 },
@@ -135,6 +136,33 @@ function AdPanel({
 }
 
 export default function Vehicle({ kind, adUrl, vacantText, body, stroke, id }: VehicleProps) {
+  if (kind === 'blimp') {
+    /*
+     * The only one that does not touch the road, and the largest panel in the
+     * town by some way.
+     *
+     * It can afford the size precisely because it flies: everything else was
+     * kept small to stay out of the shopfronts, and the sky was empty. Drawn
+     * standing on y = 0 like the rest, which for a blimp means the underside of
+     * its gondola, so the same code can place all four.
+     */
+    return (
+      <g>
+        {/* Envelope */}
+        <ellipse cx={165} cy={-90} rx={162} ry={54} fill={body} stroke={stroke} {...INK} />
+        {/* Tail fins, at the blunt end */}
+        <polygon points="8,-90 -22,-124 -22,-56" fill={body} stroke={stroke} {...INK} />
+        <polygon points="20,-118 -10,-146 -4,-112" fill={body} stroke={stroke} {...INK} />
+        {/* Gondola, and the two struts holding it up */}
+        <rect x={140} y={-40} width={4} height={12} fill={stroke} />
+        <rect x={186} y={-40} width={4} height={12} fill={stroke} />
+        <rect x={128} y={-30} width={74} height={26} rx={CORNER_RADIUS} fill={body} stroke={stroke} {...INK} />
+        <rect x={138} y={-24} width={22} height={13} rx={CORNER_RADIUS} fill={GLASS} stroke={stroke} strokeWidth={2.5} />
+        <AdPanel x={56} y={-124} w={210} h={68} adUrl={adUrl} vacantText={vacantText} stroke={stroke} id={id} />
+      </g>
+    );
+  }
+
   if (kind === 'led') {
     /*
      * A flatbed carrying a screen — the biggest panel in the town, riding at

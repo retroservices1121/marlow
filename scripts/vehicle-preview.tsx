@@ -30,9 +30,10 @@ const VIEW_HEIGHT = 720;
 const ROAD_DEPTH = VIEW_HEIGHT - CURB_Y;
 
 const WIDTH = 1200;
-const HEIGHT = 560;
+const HEIGHT = 700;
 
 const kinds = [
+  { kind: 'blimp' as const, body: '#A868A8', label: 'Blimp' },
   { kind: 'led' as const, body: '#E8544B', label: 'LED truck' },
   { kind: 'pickup' as const, body: '#4FA382', label: 'Pickup' },
   { kind: 'van' as const, body: '#4A90C4', label: 'Van' },
@@ -40,7 +41,7 @@ const kinds = [
 
 const rows = kinds
   .map((v, i) => {
-    const y = 190 + i * 130;
+    const y = 200 + i * 150;
     const drawn = renderToStaticMarkup(
       <Vehicle kind={v.kind} body={v.body} stroke={palette.stroke} id={`ad-${v.kind}`} />,
     );
@@ -71,6 +72,7 @@ if (!main) throw new Error('no main street');
 const lots = generateLots([{ ...main, count: 9 }]);
 
 const slots: AdSlot[] = [
+  { kind: 'blimp', minBidCents: 2000, bidCents: 2400, nextCents: 2500, taken: true, url: 'https://example.com', adUrl: null },
   { kind: 'led', minBidCents: 1000, bidCents: 0, nextCents: 1000, taken: true, url: 'https://example.com', adUrl: null },
   { kind: 'pickup', minBidCents: 500, bidCents: 1200, nextCents: 1300, taken: true, url: 'https://example.com', adUrl: null },
   { kind: 'van', minBidCents: 300, bidCents: 0, nextCents: 300, taken: false, url: null, adUrl: null },

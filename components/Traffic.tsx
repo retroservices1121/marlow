@@ -27,6 +27,7 @@ import { applyTimeTint, type TimePalette } from '@/lib/palette';
 
 /** Body colours, from the town's own palette. */
 const BODY: Record<VehicleKind, string> = {
+  blimp: '#A868A8',
   led: '#E8544B',
   pickup: '#4FA382',
   van: '#4A90C4',
@@ -39,11 +40,28 @@ const BODY: Record<VehicleKind, string> = {
  * The truck is nearest and in front; the van is furthest away and furthest
  * back, which is also why it is smallest.
  */
-const LANE: Record<VehicleKind, { up: number; back: number }> = {
+const LANE: Record<Exclude<VehicleKind, 'blimp'>, { up: number; back: number }> = {
   led: { up: 4, back: 0 },
   pickup: { up: 30, back: 430 },
   van: { up: 52, back: 800 },
 };
+
+/** The three that use the road. The blimp is not one of them. */
+const ROAD: Exclude<VehicleKind, 'blimp'>[] = ['van', 'pickup', 'led'];
+
+/**
+ * Where the underside of the blimp's gondola sits, from the top of the frame.
+ *
+ * Up among the clouds, which is the point of it. The first attempt put this at
+ * 168 and then added the blimp's own height on top, which flew it at 300 —
+ * level with the upper floors of the tall buildings, reading less as an
+ * airship than as something that had gone badly wrong. Measured to the same
+ * edge every other vehicle stands on, so there is no offset to get backwards.
+ */
+const BLIMP_BASELINE = 195;
+
+/** The blimp crosses the town in its own time, slower than anything driving. */
+const BLIMP_SPEED = 92;
 
 /** Units of road per second. Walking pace for something the size of a town. */
 const SPEED = 240;
@@ -120,10 +138,65 @@ export default function Traffic({
   const distance = totalWidth + RUN_UP + 400;
   const seconds = Math.round(distance / SPEED);
 
-  // Furthest lane first, so the nearest vehicle passes in front of the others.
-  const order: VehicleKind[] = ['van', 'pickup', 'led'];
+  const blimp = slots.find((s) => s.kind === 'blimp');
+  const blimpSize = VEHICLE_SIZE.blimp;
+  const blimpDistance = totalWidth + blimpSize.width + 600;
 
   return (
+    <>
+      {/*
+        * The blimp first, so it is behind everything — it is the furthest away
+        * thing in the picture and has to pass behind the rooflines, not over
+        * them. Its own group and its own animation, because it does not travel
+        * with the convoy and would look tethered to it if it did.
+        */}
+      {blimp && (
+        <g
+          className="mw-blimp"
+          style={
+            {
+              '--mw-drive-from': -blimpSize.width - 200,
+              '--mw-drive-to': totalWidth + 300,
+              '--mw-drive-secs': `${Math.round(blimpDistance / BLIMP_SPEED)}s`,
+            } as React.CSSProperties
+          }
+        >
+          <g transform={`translate(0 ${BLIMP_BASELINE})`}>
+            {blimp.url ? (
+              <a href={blimp.url} target="_blank" rel="nofollow noopener noreferrer">
+                <Vehicle
+                  kind="blimp"
+                  adUrl={blimp.adUrl}
+                  body={applyTimeTint(BODY.blimp, palette)}
+                  stroke={palette.stroke}
+                  id="ad-blimp"
+                />
+              </a>
+            ) : (
+              <a href="/ads">
+                <Vehicle
+                  kind="blimp"
+                  adUrl={blimp.adUrl}
+                  body={applyTimeTint(BODY.blimp, palette)}
+                  stroke={palette.stroke}
+                  id="ad-blimp"
+                />
+              </a>
+            )}
+            {blimp.taken && (
+              <a href="/ads">
+                <OutbidTag
+                  cents={blimp.nextCents}
+                  stroke={palette.stroke}
+                  width={blimpSize.width}
+                  top={-blimpSize.height}
+                />
+              </a>
+            )}
+          </g>
+        </g>
+      )}
+
     <g
       className="mw-traffic"
       style={
@@ -134,7 +207,7 @@ export default function Traffic({
         } as React.CSSProperties
       }
     >
-      {order.map((kind) => {
+      {ROAD.map((kind) => {
         const slot = slots.find((s) => s.kind === kind);
         const lane = LANE[kind];
         const size = VEHICLE_SIZE[kind];
@@ -185,5 +258,6 @@ export default function Traffic({
         );
       })}
     </g>
+    </>
   );
 }

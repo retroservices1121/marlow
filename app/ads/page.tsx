@@ -36,13 +36,16 @@ const PROBLEMS: Record<string, string> = {
 };
 
 const BODY: Record<string, string> = {
+  blimp: '#A868A8',
   led: '#E8544B',
   pickup: '#4FA382',
   van: '#4A90C4',
 };
 
 const WHAT_IT_IS: Record<string, string> = {
-  led: 'The biggest panel in town, on a screen truck that leads the convoy.',
+  blimp:
+    'Over the whole town, above every roof, on every street at once. The largest panel in Marlow.',
+  led: 'The biggest panel on the road, on a screen truck that leads the convoy.',
   pickup: 'A panel along the bed of the pickup, second in the convoy.',
   van: 'The wrapped side of the van, bringing up the rear.',
 };
@@ -59,7 +62,8 @@ export default async function AdsPage({
     <main className="mw-page mw-narrow">
       <h1 className="mw-title">Advertise in Marlow</h1>
       <p className="mw-sub">
-        Three vehicles drive every street in the town, all day, in front of every shop.{' '}
+        A blimp over the town and three vehicles driving every street, all day, in front of every
+        shop.{' '}
         <Link href="/street/main-street">Watch them go past</Link>.
       </p>
 
@@ -128,7 +132,7 @@ export default async function AdsPage({
             </h2>
 
             <svg
-              className="mw-ad-vehicle"
+              className={`mw-ad-vehicle${slot.kind === 'blimp' ? ' mw-ad-sky' : ''}`}
               viewBox={`${-pad} ${-size.height - pad} ${size.width + pad * 2} ${size.height + pad * 2}`}
               role="img"
               aria-label={VEHICLE_LABEL[slot.kind]}

@@ -1,6 +1,8 @@
 /**
  * The three vehicles, and who is riding on them.
  *
+ * Four of them: a blimp over the town and three vehicles on the road.
+ *
  * Kept apart from lots on purpose. A shopfront is bought once and cannot be
  * taken away; a vehicle panel is rented from whoever pays most, and its holder
  * can be displaced. Those are opposite promises, and the surest way to keep
@@ -17,10 +19,12 @@ import {
   sniffImageType,
 } from './store-profile';
 
-export const VEHICLE_KINDS: VehicleKind[] = ['led', 'pickup', 'van'];
+/** In the order they are offered: highest and most visible first. */
+export const VEHICLE_KINDS: VehicleKind[] = ['blimp', 'led', 'pickup', 'van'];
 
 /** What each vehicle is called where somebody has to read it. */
 export const VEHICLE_LABEL: Record<VehicleKind, string> = {
+  blimp: 'The blimp',
   led: 'The screen truck',
   pickup: 'The pickup',
   van: 'The van',

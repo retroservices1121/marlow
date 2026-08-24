@@ -1591,13 +1591,19 @@ body {
   animation: mw-drive var(--mw-drive-secs, 90s) linear infinite;
 }
 
+/* The blimp keeps its own time, slower than anything on the ground. */
+.mw-blimp {
+  animation: mw-drive var(--mw-drive-secs, 220s) linear infinite;
+}
+
 /*
  * Parked, for anybody who has asked for less motion. Something sliding across
  * the page forever is precisely what that setting exists to stop — and the ads
  * are still there, still legible, still clickable.
  */
 @media (prefers-reduced-motion: reduce) {
-  .mw-traffic {
+  .mw-traffic,
+  .mw-blimp {
     animation: none;
     transform: translateX(calc(var(--mw-drive-to) * 0.42px));
   }
@@ -1647,6 +1653,11 @@ body {
   background: #9ba0a5;
   border: 3px solid var(--mw-ink);
   border-radius: 2px;
+}
+
+/* The one that flies is shown against sky, not tarmac. */
+.mw-ad-sky {
+  background: #7ec8e3;
 }
 
 .mw-bid {

@@ -403,7 +403,12 @@ async function main() {
 
   const vehicles = await adSlots();
   const van = vehicles.find((v) => v.kind === 'van');
-  check('49bq. the three vehicles exist', vehicles.length === 3);
+  check('49bq. all four slots exist', vehicles.length === 4, String(vehicles.length));
+  check(
+    '49bq1. the blimp is the dearest and the van the cheapest',
+    vehicles.find((v) => v.kind === 'blimp')?.minBidCents === 2000 &&
+      vehicles.find((v) => v.kind === 'van')?.minBidCents === 300,
+  );
   check('49br. the van has a floor', (van?.minBidCents ?? 0) === 300, String(van?.minBidCents));
   check(
     '49bs. bids step a whole dollar, not a penny',

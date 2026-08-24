@@ -25,6 +25,7 @@ import { join } from 'path';
 import sharp from 'sharp';
 import Street from '@/components/Street';
 import { STREETS, generateLots } from '@/lib/lots';
+import type { AdSlot } from '@/lib/ads';
 
 const WIDTH = 1200;
 const HEIGHT = 630;
@@ -36,7 +37,26 @@ const main = STREETS.find((s) => s.main);
 if (!main) throw new Error('no main street');
 
 const lots = generateLots([{ ...main, count: SHOPS }]);
-const street = renderToStaticMarkup(<Street lots={lots} timeOfDay="day" />);
+
+/*
+ * The card shows the town working, not an empty set. Every slot is drawn as
+ * vacant on purpose: this picture is what a stranger sees before they know
+ * Marlow exists, and "YOUR AD HERE" going past on a truck explains the whole
+ * business in a way no sentence on the card could.
+ *
+ * They are shown vacant rather than carrying real advertisers for a second
+ * reason: a card is fetched and cached by strangers' servers for as long as
+ * they feel like it, so putting a paying customer's artwork in one would
+ * promise them a placement nobody can take back down.
+ */
+const slots: AdSlot[] = [
+  { kind: 'blimp', minBidCents: 2000, bidCents: 0, nextCents: 2000, taken: false, url: null, adUrl: null },
+  { kind: 'led', minBidCents: 1000, bidCents: 0, nextCents: 1000, taken: false, url: null, adUrl: null },
+  { kind: 'pickup', minBidCents: 500, bidCents: 0, nextCents: 500, taken: false, url: null, adUrl: null },
+  { kind: 'van', minBidCents: 300, bidCents: 0, nextCents: 300, taken: false, url: null, adUrl: null },
+];
+
+const street = renderToStaticMarkup(<Street lots={lots} timeOfDay="day" ads={slots} />);
 
 // The street draws itself into its own viewBox; lift the numbers back out
 // rather than guessing them, so this keeps working when the street changes.
@@ -59,9 +79,27 @@ const inner = street
   .replace(/<\/svg>$/, '')
   // Both closing forms: React renders SVG elements as <rect ...></rect>, not
   // self-closing, which is why the first attempt at this silently did nothing.
-  .replace(/<rect[^>]*class="mw-focus-ring"[^>]*>(<\/rect>)?/g, '');
+  .replace(/<rect[^>]*class="mw-focus-ring"[^>]*>(<\/rect>)?/g, '')
+  /*
+   * The convoy and the blimp are driven across the street by CSS, and a
+   * standalone SVG has no stylesheet — so both would sit off the left-hand end
+   * where they start, out of frame. Placed by hand here, and only here: the
+   * live street still animates.
+   */
+  /*
+   * Proportions of the street, not fixed numbers, so both stay where they were
+   * put if the shop count ever changes.
+   *
+   * Both are pushed right, away from the two things in the left of the frame:
+   * the words at the top, which the blimp flew straight behind on the first
+   * attempt with only its gondola showing underneath, and the marlow.lol badge
+   * at the bottom, which swallowed the van whole on the second.
+   */
+  .replace('class="mw-traffic"', `transform="translate(${streetWidth * 0.85} 0)"`)
+  .replace('class="mw-blimp"', `transform="translate(${streetWidth * 0.62} 0)"`);
 
 if (/mw-focus-ring/.test(inner)) throw new Error('focus rings survived the strip');
+if (/mw-traffic|mw-blimp/.test(inner)) throw new Error('traffic was not placed');
 
 /*
  * Sized so the shops fill the width and stand on the bottom edge. The sky above

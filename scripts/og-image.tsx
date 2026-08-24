@@ -90,12 +90,13 @@ const inner = street
    * Proportions of the street, not fixed numbers, so both stay where they were
    * put if the shop count ever changes.
    *
-   * Both are pushed right, away from the two things in the left of the frame:
-   * the words at the top, which the blimp flew straight behind on the first
-   * attempt with only its gondola showing underneath, and the marlow.lol badge
-   * at the bottom, which swallowed the van whole on the second.
+   * The words sit top left and the badge bottom right, so the traffic runs
+   * along the road between them: the blimp clear of the panel, and the convoy
+   * clear of the badge. The blimp flew straight behind the panel on the first
+   * attempt with only its gondola showing, and the badge swallowed the van
+   * whole on the second — neither was visible in anything but the picture.
    */
-  .replace('class="mw-traffic"', `transform="translate(${streetWidth * 0.85} 0)"`)
+  .replace('class="mw-traffic"', `transform="translate(${streetWidth * 0.70} 0)"`)
   .replace('class="mw-blimp"', `transform="translate(${streetWidth * 0.62} 0)"`);
 
 if (/mw-focus-ring/.test(inner)) throw new Error('focus rings survived the strip');
@@ -131,7 +132,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${
     <text x="36" y="164" font-family="${FONT}" font-size="25" fill="#4A4A45">1,000 addresses. From $15.</text>
   </g>
 
-  <g transform="translate(56 ${HEIGHT - 78})">
+  <g transform="translate(${WIDTH - 232 - 56} ${HEIGHT - 78})">
     <rect width="232" height="52" rx="2" fill="#F5CE3E" stroke="#1A1A1A" stroke-width="5"/>
     <text x="24" y="35" font-family="${FONT}" font-size="27" font-weight="700" fill="#1A1A1A">marlow.lol</text>
   </g>

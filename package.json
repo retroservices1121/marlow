@@ -19,7 +19,8 @@
     "db:migrate": "node scripts/migrate.js",
     "grant": "node scripts/grant.js",
     "transfer": "node scripts/transfer.js",
-    "reserve": "node scripts/reserve.js"
+    "reserve": "node scripts/reserve.js",
+    "ad:set": "node scripts/set-ad.js"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.8.0",

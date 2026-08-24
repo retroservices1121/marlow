@@ -482,9 +482,10 @@ check(
 check(
   '33b. no signpost stands in the road',
   scenes.every((scene) => {
-    const posts = [...scene.svg.matchAll(/<g transform="translate\(([-\d.]+) 590\)"/g)].map((m) =>
-      Number(m[1]),
-    );
+    // By the marker, not by the baseline: pedestrians stand at 590 too.
+    const posts = [
+      ...scene.svg.matchAll(/<g data-signpost="" transform="translate\(([-\d.]+) [\d.]+\)"/g),
+    ].map((m) => Number(m[1]));
     if (posts.length === 0) return false;
     const pavements = [...scene.svg.matchAll(/<rect x="([-\d.]+)" y="560" width="([\d.]+)"/g)].map(
       (m) => [Number(m[1]), Number(m[1]) + Number(m[2])] as const,

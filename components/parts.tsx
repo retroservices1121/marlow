@@ -658,7 +658,13 @@ export function StreetSign({
   const nib = 13;
 
   return (
-    <g transform={`translate(${x} ${baseline})`}>
+    /*
+     * Marked, so the harness can tell a signpost from anything else standing
+     * on the pavement. It used to find these by matching every group at the
+     * pavement baseline, which worked until people started walking there —
+     * and then reported the pedestrians as posts in the road.
+     */
+    <g data-signpost="" transform={`translate(${x} ${baseline})`}>
       <rect
         x={-4}
         y={-SIGN_POST_HEIGHT}

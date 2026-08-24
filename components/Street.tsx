@@ -25,6 +25,7 @@ import {
 } from '@/lib/palette';
 import Building, { DEFAULT_BASELINE, buildingTotalHeight, deriveGeometry } from './Building';
 import Traffic from './Traffic';
+import Pedestrians from './Pedestrians';
 import type { AdSlot } from '@/lib/ads';
 import {
   Cloud,
@@ -527,6 +528,13 @@ export default function Street({
           />
         );
       })}
+
+      {/*
+        * People on the pavement, before the traffic and after the furniture:
+        * they walk in front of the shops and the benches, and a truck passes
+        * in front of them.
+        */}
+      <Pedestrians totalWidth={totalWidth} baseline={FURNITURE_BASELINE} palette={palette} />
 
       {/*
         * Traffic last, so it passes in front of the curb and the street

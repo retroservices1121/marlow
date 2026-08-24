@@ -60,8 +60,15 @@ const ROAD: Exclude<VehicleKind, 'blimp'>[] = ['van', 'pickup', 'led'];
  */
 const BLIMP_BASELINE = 195;
 
-/** The blimp crosses the town in its own time, slower than anything driving. */
-const BLIMP_SPEED = 92;
+/**
+ * How fast the blimp crosses, in units of street per second.
+ *
+ * Slower than the traffic, because an airship that kept up with a van would
+ * not read as an airship — but only a little. At 92 it took two and a half
+ * times as long to cross as the convoy did, so for most of every cycle it was
+ * somewhere else entirely and the sky looked empty while the road was busy.
+ */
+const BLIMP_SPEED = 190;
 
 /** Units of road per second. Walking pace for something the size of a town. */
 const SPEED = 240;

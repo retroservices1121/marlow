@@ -1591,6 +1591,26 @@ body {
   animation: mw-drive var(--mw-drive-secs, 90s) linear infinite;
 }
 
+/*
+ * A short stroll, back and forth. `alternate` rather than a loop, so nobody
+ * walks off the end of the street and reappears at the other — they wander a
+ * little way and turn round, which is what people do outside shops.
+ */
+@keyframes mw-walk {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(var(--mw-walk, 160px));
+  }
+}
+
+.mw-walker {
+  animation-name: mw-walk;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
 /* The blimp keeps its own time, slower than anything on the ground. */
 .mw-blimp {
   animation: mw-drive var(--mw-drive-secs, 220s) linear infinite;
@@ -1603,7 +1623,8 @@ body {
  */
 @media (prefers-reduced-motion: reduce) {
   .mw-traffic,
-  .mw-blimp {
+  .mw-blimp,
+  .mw-walker {
     animation: none;
     transform: translateX(calc(var(--mw-drive-to) * 0.42px));
   }

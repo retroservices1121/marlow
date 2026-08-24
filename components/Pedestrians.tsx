@@ -65,30 +65,41 @@ function Person({
   delay: number;
   reverse: boolean;
 }) {
+  /*
+   * Two groups, and it matters: the outer one stands the person on the
+   * pavement, the inner one walks.
+   *
+   * They were one group at first, carrying a transform attribute for position
+   * and a CSS animation for the walk. In SVG those are the same property, and
+   * the animation wins — so the moment it started every person lost their
+   * place, dropped to the top of the frame, and vanished above it. The still
+   * render could not show it, because a PNG has no stylesheet.
+   */
   return (
-    <g
-      className="mw-walker"
-      style={
-        {
-          '--mw-walk': `${STROLL}px`,
-          animationDuration: `${seconds}s`,
-          animationDelay: `${delay}s`,
-          animationDirection: reverse ? 'alternate-reverse' : 'alternate',
-        } as React.CSSProperties
-      }
-      transform={`translate(${x} ${baseline})`}
-    >
-      {/*
-       * Sized against a shop door, which is the only measure that matters. The
-       * first attempt made them 48 units tall against a 70-unit door and they
-       * read as children — and they stand thirty units in front of the
-       * buildings, so if anything they should look slightly large, not small.
-       */}
-      {/* Legs. Two, apart, so the shape reads as walking rather than standing. */}
-      <rect x={-9} y={-17} width={6} height={17} fill={stroke} />
-      <rect x={3} y={-17} width={6} height={17} fill={stroke} />
-      <rect x={-12} y={-42} width={24} height={27} rx={CORNER_RADIUS} fill={coat} stroke={stroke} {...INK} />
-      <circle cx={0} cy={-52} r={10.5} fill={skin} stroke={stroke} {...INK} />
+    <g transform={`translate(${x} ${baseline})`}>
+      <g
+        className="mw-walker"
+        style={
+          {
+            '--mw-walk': `${STROLL}px`,
+            animationDuration: `${seconds}s`,
+            animationDelay: `${delay}s`,
+            animationDirection: reverse ? 'alternate-reverse' : 'alternate',
+          } as React.CSSProperties
+        }
+      >
+        {/*
+         * Sized against a shop door, which is the only measure that matters.
+         * The first attempt made them 48 units tall against a 70-unit door and
+         * they read as children — and they stand thirty units in front of the
+         * buildings, so if anything they should look slightly large.
+         */}
+        {/* Legs. Two, apart, so the shape reads as walking, not standing. */}
+        <rect x={-9} y={-17} width={6} height={17} fill={stroke} />
+        <rect x={3} y={-17} width={6} height={17} fill={stroke} />
+        <rect x={-12} y={-42} width={24} height={27} rx={CORNER_RADIUS} fill={coat} stroke={stroke} {...INK} />
+        <circle cx={0} cy={-52} r={10.5} fill={skin} stroke={stroke} {...INK} />
+      </g>
     </g>
   );
 }

@@ -1592,23 +1592,15 @@ body {
 }
 
 /*
- * A short stroll, back and forth. `alternate` rather than a loop, so nobody
- * walks off the end of the street and reappears at the other — they wander a
- * little way and turn round, which is what people do outside shops.
+ * A walk from one end of the street to the other, sharing the vehicles' own
+ * keyframe: the same journey at a fifth of the speed.
+ *
+ * Not a stroll back and forth, which was the first idea and walks somebody
+ * backwards for half of every cycle — the same moonwalk that drawing them in
+ * profile was meant to fix.
  */
-@keyframes mw-walk {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(var(--mw-walk, 160px));
-  }
-}
-
 .mw-walker {
-  animation-name: mw-walk;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
+  animation: mw-drive var(--mw-drive-secs, 90s) linear infinite;
 }
 
 /* The blimp keeps its own time, slower than anything on the ground. */

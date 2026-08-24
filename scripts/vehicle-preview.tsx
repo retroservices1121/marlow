@@ -16,6 +16,7 @@ import { join } from 'path';
 import sharp from 'sharp';
 import Vehicle, { VEHICLE_SIZE } from '@/components/Vehicle';
 import Street from '@/components/Street';
+import Pedestrians from '@/components/Pedestrians';
 import { STREETS, generateLots } from '@/lib/lots';
 import type { AdSlot } from '@/lib/ads';
 import { TIME_PALETTES } from '@/lib/palette';
@@ -81,10 +82,21 @@ const slots: AdSlot[] = [
 const street = renderToStaticMarkup(<Street lots={lots} timeOfDay="day" ads={slots} />);
 const box = street.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
 if (!box) throw new Error('no viewBox');
+let walkerAt = 120;
 const inner = street
   .replace(/^<svg[^>]*>/, '')
   .replace(/<\/svg>$/, '')
-  .replace(/<rect[^>]*class="mw-focus-ring"[^>]*>(<\/rect>)?/g, '');
+  .replace(/<rect[^>]*class="mw-focus-ring"[^>]*>(<\/rect>)?/g, '')
+  /*
+   * Walkers all sit at x = 0 in a still, because the CSS that carries them
+   * along the street is not applied to a PNG. Spread here so the drawing can
+   * actually be looked at — a person facing the wrong way is invisible in a
+   * pile of people at the left-hand edge.
+   */
+  .replace(/<g transform="translate\(0 590\)">/g, () => {
+    walkerAt += 260;
+    return `<g transform="translate(${walkerAt} 590)">`;
+  });
 
 /* The convoy starts off the left-hand end, so it is shifted into frame here —
    the animation that normally does that is CSS, and this is a still. */
@@ -94,13 +106,46 @@ const streetSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="
 
 const streetOut = join(process.cwd(), 'street-traffic.png');
 
+/*
+ * And the people on their own, big enough to judge.
+ *
+ * At street scale a person is forty pixels tall and a nose is three, so
+ * "facing the wrong way" and "facing the right way" look identical. This is the
+ * only view in which that can be checked, which is the whole reason it exists.
+ */
+const peopleSvg = (() => {
+  const drawn = renderToStaticMarkup(
+    <Pedestrians totalWidth={1600} baseline={0} palette={palette} />,
+  );
+  /*
+   * Every person repositioned on an even spacing, walkers and standers alike.
+   * The first attempt only moved the ones at x = 0 and framed 480 units of a
+   * 900-unit street, so it showed two standers and hid every walker — the
+   * exact thing it was built to look at.
+   */
+  let at = -80;
+  const spread = drawn.replace(/<g transform="translate\([-\d.]+ 0\)">/g, () => {
+    at += 92;
+    return `<g transform="translate(${at} 0)">`;
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 620 104">
+    <rect width="620" height="104" fill="#D6D6D0"/>
+    <text x="8" y="16" font-family="Verdana, sans-serif" font-size="9" font-weight="700" fill="#1A1A1A">Walkers face the way they go · standers face the shop</text>
+    <g transform="translate(0 96)">${spread}</g>
+  </svg>`;
+})();
+
+const peopleOut = join(process.cwd(), 'people-preview.png');
+
 Promise.all([
   sharp(Buffer.from(svg)).png().toFile(out),
   sharp(Buffer.from(streetSvg)).png().toFile(streetOut),
+  sharp(Buffer.from(peopleSvg)).png().toFile(peopleOut),
 ])
-  .then(([a, b]) => {
+  .then(([a, b, c]) => {
     console.log(`wrote ${out} — ${a.width}x${a.height}`);
     console.log(`wrote ${streetOut} — ${b.width}x${b.height}`);
+    console.log(`wrote ${peopleOut} — ${c.width}x${c.height}`);
   })
   .catch((e) => {
     console.error('RASTERISE FAILED:', e.message);

@@ -1,5 +1,6 @@
 /**
- * The three vehicles that carry advertising through Marlow.
+ * The four things that carry advertising through Marlow: a blimp over the
+ * town and three vehicles on the road.
  *
  * Drawn to the town's rules — one stroke width, flat fills, no gradients — so a
  * truck belongs on the street rather than sitting on it like a sticker.

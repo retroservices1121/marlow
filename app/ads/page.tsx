@@ -1,5 +1,5 @@
 /**
- * The three vehicles, what it costs to ride them, and how to take one.
+ * The four slots, what it costs to ride them, and how to take one.
  *
  * Deliberately the plainest page in Marlow. Everywhere else the town is selling
  * something permanent and can afford to be charming about it; this is an
@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Advertise in Marlow',
   description:
-    'Three vehicles drive every street in Marlow. Bid to put your ad on one — highest bid rides.',
+    'A blimp over the town and three vehicles on every street. Bid to put your ad on one — highest bid rides.',
 };
 
 /** What the checkout route can send somebody back with. Codes, never text. */

@@ -1,5 +1,6 @@
 /**
- * The convoy: three vehicles driving the length of the street, carrying ads.
+ * The convoy: three vehicles driving the length of the street, and a blimp
+ * drifting over it, all carrying ads.
  *
  * The truck leads and the other two trail behind it in their own lanes, near to
  * far, so the road has depth rather than three shapes in a line. Drawn last, so

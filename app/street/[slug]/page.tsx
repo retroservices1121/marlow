@@ -99,7 +99,7 @@ export default async function StreetPage({
         action={
           <>
             <Link className="mw-chip mw-chip-ad" href="/ads">
-              Advertise on a truck
+              Advertise in Marlow
             </Link>
             <Link className="mw-chip" href="/streets">
               See every address
